@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: travel-photo
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql:100.102.72.31:5900:3306/photo_trip?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:1234567890}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate     # BẮT BUỘC — Flyway là nguồn sự thật duy nhất cho schema (SEC-09)
+    open-in-view: false
+    show-sql: false
+    database-platform: org.hibernate.dialect.MySQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    out-of-order: false
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+           # user-info-uri: https://www.gooleapis.com/oauth2/v3/userinfo
+            scope: [email, profile]
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 150MB   # đủ cho tối đa 100 file / lần upload
+
+server:
+  forward-headers-strategy: native   # hiểu đúng X-Forwarded-For từ Nginx (SEC-06/SEC-08)
+  port: ${SERVER_PORT:8068}
+  servlet:
+    context-path: /api/v1
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+jwt:
+  secret: ${JWT_SECRET}
+  access-exp-ms: 1800000       # 30 phút
+  refresh-exp-ms: 604800000    # 7 ngày
+
+storage:
+  root-path: /data/photo-storage
+
+app:
+  frontend-url: ${FRONTEND_URL:https://app.travelalbum.com}
+  api-base-url: ${API_BASE_URL:https://api.travelalbum.com}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+    env:
+      enabled: false
+    mappings:
+      enabled: false
+    heapdump:
+      enabled: false
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+google:
+
+vnpay:
+  tmn-code: "YOUR_TMN_CODE"          # Mã website merchant, VNPay cấp khi đăng ký
+  hash-secret: "YOUR_HASH_SECRET"    # Secret key merchant — tuyệt đối không lộ ra frontend/git
+  pay-url: "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"  # Production: https://vnpayment.vn/paymentv2/vpcpay.html
+  return-url: "http://localhost:5173/payment/vnpay-return"       # Trang FE nhận kết quả, đổi thành domain thật lúc deploy

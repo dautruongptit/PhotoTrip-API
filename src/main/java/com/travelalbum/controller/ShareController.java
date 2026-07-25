@@ -1,0 +1,49 @@
+package com.travelalbum.controller;
+
+import com.travelalbum.common.ApiResponse;
+import com.travelalbum.dto.response.EventResponse;
+import com.travelalbum.dto.response.PhotoResponse;
+import com.travelalbum.dto.response.ShareLinkResponse;
+import com.travelalbum.security.userdetails.UserPrincipal;
+import com.travelalbum.service.ShareService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequiredArgsConstructor
+public class ShareController {
+
+    private final ShareService shareService;
+
+    @PostMapping("/api/events/{id}/share")
+    @PreAuthorize("hasRole('ADMIN') or @eventSecurity.isOwner(#id, authentication)")
+    public ApiResponse<ShareLinkResponse> create(@PathVariable Long id,
+                                                  @AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success("Share link created", shareService.create(id, principal.getId()));
+    }
+
+    @GetMapping("/api/share/{token}")
+    public ApiResponse<EventResponse> viewByToken(@PathVariable String token) {
+        return ApiResponse.success("OK", shareService.getEventByToken(token));
+    }
+
+    @GetMapping("/api/share/{token}/photos")
+    public ApiResponse<Page<PhotoResponse>> listByToken(@PathVariable String token, Pageable pageable) {
+        return ApiResponse.success("OK", shareService.listPhotosByToken(token, pageable));
+    }
+
+    @DeleteMapping("/api/share/{token}")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public ApiResponse<Void> revoke(@PathVariable String token, @AuthenticationPrincipal UserPrincipal principal) {
+        shareService.revoke(token, principal.getId(), principal.isAdmin());
+        return ApiResponse.success("Share link revoked", null);
+    }
+}

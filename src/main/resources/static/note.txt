@@ -1,0 +1,9 @@
+ RelativeService : userRepo.decrementRelativeCount(userId);
+ Could not autowire. No beans of 'ObjectMapper' type found.
+
+
+ EventService :  PageRequest.of(0, limit)
+
+ JwtTokenProvider : .subject(userId.toString())
+
+ chưa có JwtConfig

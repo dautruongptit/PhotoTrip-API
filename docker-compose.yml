@@ -1,0 +1,35 @@
+version: '3.9'
+
+# ============================================================
+# SEC-18: Deploy Backend dùng chung Docker network với Frontend
+# và kết nối tới MySQL ĐÃ CÀI SẴN (không tạo container DB mới ở đây).
+#
+# Yêu cầu trước khi chạy:
+#   1. Đổi EXTERNAL_NETWORK_NAME trong .env thành đúng tên network Docker
+#      đang chạy Frontend + MySQL (kiểm tra bằng: docker network ls).
+#   2. Đảm bảo DB_HOST trong .env trùng với tên container MySQL trên network đó
+#      (hoặc IP/hostname MySQL nếu MySQL không chạy trong Docker).
+#   3. Database DB_NAME phải đã được tạo sẵn trong MySQL (Flyway chỉ tạo bảng,
+#      không tự tạo database).
+# ============================================================
+
+services:
+  backend:
+    build: .
+    container_name: travelalbum-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "${SERVER_PORT:-8083}:${SERVER_PORT:-8083}"
+    volumes:
+      - ${STORAGE_ROOT_PATH:-/data/photo-storage}:/data/photo-storage
+    networks:
+      - shared
+
+networks:
+  shared:
+    external: true
+    name: ${EXTERNAL_NETWORK_NAME}
