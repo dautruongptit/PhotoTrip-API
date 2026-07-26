@@ -41,7 +41,6 @@ server:
   forward-headers-strategy: native   # hiểu đúng X-Forwarded-For từ Nginx (SEC-06/SEC-08)
   port: ${SERVER_PORT:8068}
   servlet:
-    context-path: /api/v1
     encoding:
       charset: UTF-8
       enabled: true
