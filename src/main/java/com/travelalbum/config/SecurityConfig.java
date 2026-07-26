@@ -52,6 +52,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/photos/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                    .requestMatchers("/oauth2/**").permitAll()
+                    .requestMatchers(
+                            "/oauth2/**",
+                            "/login/oauth2/**"
+                    ).permitAll()
                 .anyRequest().authenticated())
             .oauth2Login(oauth2 -> oauth2
                 .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
@@ -67,7 +72,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("https://app.travelalbum.com"));
+        config.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "http://localhost:8443",
+                "https://app.travelalbum.com"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);

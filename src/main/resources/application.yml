@@ -12,7 +12,7 @@ spring:
     hibernate:
       ddl-auto: validate     # BẮT BUỘC — Flyway là nguồn sự thật duy nhất cho schema (SEC-09)
     open-in-view: false
-    show-sql: false
+    show-sql: true
     database-platform: org.hibernate.dialect.MySQLDialect
 
   flyway:
@@ -54,8 +54,9 @@ storage:
   root-path: /data/photo-storage
 
 app:
-  frontend-url: ${FRONTEND_URL:https://app.travelalbum.com}
-  api-base-url: ${API_BASE_URL:https://api.travelalbum.com}
+  frontend-url: ${FRONTEND_URL:http://100.101.239.103:8443}
+  api-base-url: ${API_BASE_URL:http://localhost:8068}
+  cookie-secure: ${COOKIE_SECURE:true}
 
 management:
   endpoints:
