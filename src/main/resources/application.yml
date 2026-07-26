@@ -54,9 +54,11 @@ storage:
   root-path: /data/photo-storage
 
 app:
-  frontend-url: ${FRONTEND_URL:http://100.101.239.103:8443}
+  frontend-url: ${FRONTEND_URL:http://localhost:8443}
   api-base-url: ${API_BASE_URL:http://localhost:8068}
   cookie-secure: ${COOKIE_SECURE:true}
+  dev-login-enabled: ${DEV_LOGIN_ENABLED:false}   # mặc định FALSE
+  dev-login-secret: ${DEV_LOGIN_SECRET:}
 
 management:
   endpoints:

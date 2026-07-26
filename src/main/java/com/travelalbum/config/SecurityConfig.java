@@ -7,6 +7,7 @@ import com.travelalbum.security.oauth2.CustomOAuth2UserService;
 import com.travelalbum.security.oauth2.OAuth2FailureHandler;
 import com.travelalbum.security.oauth2.OAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -23,7 +24,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
-/** Cấu hình Security tổng hợp — SEC-02 (Zero Trust) + SEC-04 (OAuth2/JWT). */
+/** Cấu hình Security tổng hợp — SEC-02 (Zero Trust) + SEC-04 (OAuth2/JWT) + SEC-20/SEC-25 (bổ sung). */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -37,48 +38,54 @@ public class SecurityConfig {
     private final JwtAuthEntryPoint jwtAuthEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
+    @Value("${app.cookie-secure:true}")
+    private boolean cookieSecure;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(AbstractHttpConfigurer::disable)
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .headers(h -> h
-                .frameOptions(f -> f.deny())
-                .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true)))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/oauth2/**", "/api/auth/refresh", "/api/auth/logout").permitAll()
-                .requestMatchers("/api/share/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/photos/**").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                    .requestMatchers("/oauth2/**").permitAll()
-                    .requestMatchers(
-                            "/oauth2/**",
-                            "/login/oauth2/**"
-                    ).permitAll()
-                .anyRequest().authenticated())
-            .oauth2Login(oauth2 -> oauth2
-                .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
-                .successHandler(oAuth2SuccessHandler)
-                .failureHandler(oAuth2FailureHandler))
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .exceptionHandling(e -> e
-                .authenticationEntryPoint(jwtAuthEntryPoint)
-                .accessDeniedHandler(jwtAccessDeniedHandler));
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .headers(h -> h
+                        .frameOptions(f -> f.deny())
+                        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true)))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/oauth2/**", "/login/oauth2/code/**").permitAll()
+                        .requestMatchers("/api/auth/dev/**").permitAll()
+                        .requestMatchers("/api/auth/me/**").permitAll()
+                        .requestMatchers("/api/auth/refresh", "/api/auth/logout").permitAll()
+                        .requestMatchers("/api/share/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/photos/**").permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
+                        .successHandler(oAuth2SuccessHandler)
+                        .failureHandler(oAuth2FailureHandler))
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint(jwtAuthEntryPoint)
+                        .accessDeniedHandler(jwtAccessDeniedHandler));
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+        // Gộp chung 1 list: origin thật từ .env + các cổng local hay dùng khi test (Vite, Postman-adjacent FE)
         config.setAllowedOrigins(List.of(
+                frontendUrl,
                 "http://localhost:5173",
                 "http://localhost:8443",
-                "https://app.travelalbum.com"
+                "http://localhost:8068"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Dev-Secret"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
