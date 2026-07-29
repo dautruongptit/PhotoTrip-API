@@ -15,6 +15,7 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -39,9 +40,25 @@ public class Event {
     @Column(name = "owner_id", nullable = false)
     private Long ownerId;
 
-    /** Chỉ tên thư mục Event (vd Event_00123), KHÔNG chứa path tuyệt đối — xem SEC-11. */
+    /** Tên thư mục Event đã format sẵn (SEC-26), KHÔNG chứa path tuyệt đối — xem SEC-11. */
     @Column(name = "storage_folder", nullable = false)
     private String storageFolder;
+
+    /** Ngày bắt đầu sự kiện — dùng làm phần yyyyMMdd trong tên thư mục (SEC-26). */
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    /** Ngày kết thúc sự kiện — tuỳ chọn, chỉ mang tính hiển thị, KHÔNG dùng trong tên thư mục (SEC-27). */
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    /** Địa điểm sự kiện, vd "Đà Lạt, Lâm Đồng" (SEC-27). */
+    @Column(length = 255)
+    private String location;
+
+    /** Path tương đối của ảnh bìa trong storage, giống Photo.path — KHÔNG lộ path tuyệt đối (SEC-27). */
+    @Column(name = "cover_image_path", length = 500)
+    private String coverImagePath;
 
     @Column(name = "photo_count", nullable = false)
     @Builder.Default

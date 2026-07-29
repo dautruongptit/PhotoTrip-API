@@ -5,8 +5,10 @@ import com.travelalbum.common.ApiResponse;
 import com.travelalbum.dto.response.PhotoResponse;
 import com.travelalbum.dto.response.UploadResultResponse;
 import com.travelalbum.entity.Photo;
+import com.travelalbum.entity.User;
 import com.travelalbum.exception.NotFoundException;
 import com.travelalbum.repository.PhotoRepository;
+import com.travelalbum.repository.UserRepository;
 import com.travelalbum.security.userdetails.UserPrincipal;
 import com.travelalbum.service.AuditLogService;
 import com.travelalbum.service.PhotoService;
@@ -40,6 +42,7 @@ public class PhotoController {
 
     private final PhotoService photoService;
     private final PhotoRepository photoRepository;
+    private final UserRepository userRepository;
     private final StorageService storageService;
     private final AuditLogService auditLogService;
 
@@ -47,18 +50,16 @@ public class PhotoController {
     @PostMapping(value = "/api/events/{eventId}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ApiResponse<UploadResultResponse> upload(@PathVariable Long eventId,
-            @RequestParam("files") org.springframework.web.multipart.MultipartFile[] files,
-            @AuthenticationPrincipal UserPrincipal principal) {
+                                                    @RequestParam("files") org.springframework.web.multipart.MultipartFile[] files,
+                                                    @AuthenticationPrincipal UserPrincipal principal) {
         return ApiResponse.success("Upload processed",
-            photoService.uploadMultiple(eventId, files, principal.getId()));
+                photoService.uploadMultiple(eventId, files, principal.getId()));
     }
 
     @GetMapping("/api/events/{eventId}/photos")
     public ApiResponse<Page<PhotoResponse>> listByEvent(@PathVariable Long eventId, Pageable pageable) {
         return ApiResponse.success("OK", photoService.listByEvent(eventId, pageable));
     }
-
-    // GET /api/photos/search đã chuyển sang SearchController riêng — xem SEC-15
 
     @Auditable(action = "DELETE_PHOTO", targetType = "PHOTO")
     @DeleteMapping("/api/photos/{id}")
@@ -72,8 +73,9 @@ public class PhotoController {
     @GetMapping("/api/photos/download/{id}")
     public void download(@PathVariable Long id, HttpServletResponse response) throws IOException {
         Photo photo = photoRepository.findById(id)
-            .orElseThrow(() -> new NotFoundException("Photo not found"));
-        Resource resource = storageService.load(photo.getEvent().getOwnerId(), photo.getPath());
+                .orElseThrow(() -> new NotFoundException("Photo not found"));
+        String parentFolder = resolveOwnerStorageFolder(photo);
+        Resource resource = storageService.load(parentFolder, photo.getPath());
         response.setContentType(photo.getMimeType());
         response.setHeader("Content-Disposition", "attachment; filename=\"" + photo.getOriginalName() + "\"");
         try (InputStream in = resource.getInputStream(); OutputStream out = response.getOutputStream()) {
@@ -90,12 +92,20 @@ public class PhotoController {
         try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
             for (Photo photo : photos) {
                 zos.putNextEntry(new ZipEntry(photo.getOriginalName()));
-                Resource resource = storageService.load(photo.getEvent().getOwnerId(), photo.getPath());
+                String parentFolder = resolveOwnerStorageFolder(photo);
+                Resource resource = storageService.load(parentFolder, photo.getPath());
                 try (InputStream is = resource.getInputStream()) {
                     is.transferTo(zos);
                 }
                 zos.closeEntry();
             }
         }
+    }
+
+    private String resolveOwnerStorageFolder(Photo photo) {
+        Long ownerId = photo.getEvent().getOwnerId();
+        User owner = userRepository.findById(ownerId)
+                .orElseThrow(() -> new NotFoundException("Owner not found"));
+        return owner.getStorageFolder();
     }
 }

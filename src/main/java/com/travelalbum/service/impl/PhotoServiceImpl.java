@@ -48,7 +48,7 @@ public class PhotoServiceImpl implements PhotoService {
     @Transactional
     public UploadResultResponse uploadMultiple(Long eventId, MultipartFile[] files, Long userId) {
         Event event = eventRepository.findById(eventId)
-            .orElseThrow(() -> new NotFoundException("Event not found"));
+                .orElseThrow(() -> new NotFoundException("Event not found"));
         if (!event.getOwnerId().equals(userId)) {
             throw new AccessDeniedException("Not the owner of this event");
         }
@@ -57,7 +57,7 @@ public class PhotoServiceImpl implements PhotoService {
         }
 
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new NotFoundException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
         long incomingSize = Arrays.stream(files).mapToLong(MultipartFile::getSize).sum();
         if (user.getStorageUsed() + incomingSize > user.getStorageQuota()) {
             throw new BusinessException("Storage quota exceeded", "QUOTA_EXCEEDED");
@@ -74,19 +74,19 @@ public class PhotoServiceImpl implements PhotoService {
                     failed.add(new UploadFailure(file.getOriginalFilename(), "PHOTO_EXIST"));
                     continue;
                 }
-                StoredFile stored = storageService.store(userId, event.getStorageFolder(), file);
+                StoredFile stored = storageService.store(user.getStorageFolder(), event.getStorageFolder(), file);
                 Photo photo = Photo.builder()
-                    .event(event)
-                    .fileName(stored.fileName())
-                    .originalName(file.getOriginalFilename())
-                    .path(stored.relativePath())
-                    .size(file.getSize())
-                    .mimeType(file.getContentType())
-                    .width(stored.width())
-                    .height(stored.height())
-                    .checksum(stored.checksum())
-                    .uploadedBy(userId)
-                    .build();
+                        .event(event)
+                        .fileName(stored.fileName())
+                        .originalName(file.getOriginalFilename())
+                        .path(stored.relativePath())
+                        .size(file.getSize())
+                        .mimeType(file.getContentType())
+                        .width(stored.width())
+                        .height(stored.height())
+                        .checksum(stored.checksum())
+                        .uploadedBy(userId)
+                        .build();
                 Photo saved = photoRepository.save(photo);
                 uploaded.add(photoMapper.toResponse(saved));
                 actualUploadedSize += file.getSize();
@@ -122,22 +122,22 @@ public class PhotoServiceImpl implements PhotoService {
     @Transactional
     public void delete(Long photoId, Long requesterId, boolean isAdmin) {
         Photo photo = photoRepository.findById(photoId)
-            .orElseThrow(() -> new NotFoundException("Photo not found"));
+                .orElseThrow(() -> new NotFoundException("Photo not found"));
         Long ownerId = photo.getEvent().getOwnerId();
         if (!isAdmin && !ownerId.equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this photo");
         }
-        storageService.delete(ownerId, photo.getPath());
+        User owner = userRepository.findById(ownerId)
+                .orElseThrow(() -> new NotFoundException("Owner not found"));
+        storageService.delete(owner.getStorageFolder(), photo.getPath());
 
         Event event = photo.getEvent();
         event.setPhotoCount(Math.max(0, event.getPhotoCount() - 1));
         event.setTotalSize(Math.max(0, event.getTotalSize() - photo.getSize()));
         eventRepository.save(event);
 
-        userRepository.findById(ownerId).ifPresent(owner -> {
-            owner.setStorageUsed(Math.max(0, owner.getStorageUsed() - photo.getSize()));
-            userRepository.save(owner);
-        });
+        owner.setStorageUsed(Math.max(0, owner.getStorageUsed() - photo.getSize()));
+        userRepository.save(owner);
 
         photoRepository.delete(photo);
         auditLogService.log(requesterId, "DELETE_PHOTO", "PHOTO", photoId, null, null, "SUCCESS");

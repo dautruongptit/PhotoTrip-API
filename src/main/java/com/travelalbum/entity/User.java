@@ -87,4 +87,8 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "storage_folder")
+    private String storageFolder;   // SEC-26: {username}_{parentFolderCode}, cố định từ lần đầu tạo
+
 }

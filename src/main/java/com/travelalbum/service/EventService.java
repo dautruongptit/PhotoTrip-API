@@ -5,9 +5,10 @@ import com.travelalbum.dto.request.UpdateEventRequest;
 import com.travelalbum.dto.response.EventResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface EventService {
-    EventResponse create(CreateEventRequest req, Long ownerId);
+    EventResponse create(CreateEventRequest req, MultipartFile coverImage, Long ownerId);
     EventResponse update(Long id, UpdateEventRequest req, Long ownerId);
     void delete(Long id, Long requesterId, boolean isAdmin);
     EventResponse getById(Long id);

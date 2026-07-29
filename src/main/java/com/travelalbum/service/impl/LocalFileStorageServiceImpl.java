@@ -1,5 +1,7 @@
-package com.travelalbum.storage;
+package com.travelalbum.service.impl;
 import com.travelalbum.exception.StorageException;
+import com.travelalbum.service.StorageService;
+import com.travelalbum.storage.StoredFile;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
