@@ -20,10 +20,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Toàn bộ endpoint Admin theo bảng API ở SEC-01. /logs có từ SEC-08; /dashboard,
- * /storage, /statistics, /users được bổ sung đầy đủ ở SEC-15.
- */
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
@@ -42,15 +38,15 @@ public class AdminController {
             Pageable pageable) {
         Page<AuditLog> logs = auditLogRepository.search(action, userId, pageable);
         Page<AuditLogResponse> response = logs.map(log -> AuditLogResponse.builder()
-            .time(log.getCreatedAt())
-            .userEmail(log.getUserId() != null
-                ? userRepository.findById(log.getUserId()).map(u -> u.getEmail()).orElse("Unknown")
-                : "Anonymous")
-            .action(log.getAction())
-            .ip(log.getIpAddress())
-            .userAgent(log.getUserAgent())
-            .result(log.getResult())
-            .build());
+                .time(log.getCreatedAt())
+                .userEmail(log.getUserId() != null
+                        ? userRepository.findById(log.getUserId()).map(u -> u.getEmail()).orElse("Unknown")
+                        : "Anonymous")
+                .action(log.getAction())
+                .ip(log.getIpAddress())
+                .userAgent(log.getUserAgent())
+                .result(log.getResult())
+                .build());
         return ApiResponse.success("OK", response);
     }
 
@@ -69,7 +65,6 @@ public class AdminController {
         return ApiResponse.success("OK", adminService.getStatistics());
     }
 
-    /** Đồng nhất với GET /api/users (UserController) — tách route riêng theo đúng bảng API ở SEC-01. */
     @GetMapping("/users")
     public ApiResponse<Page<UserResponse>> users(Pageable pageable) {
         return ApiResponse.success("OK", userService.listAll(pageable));

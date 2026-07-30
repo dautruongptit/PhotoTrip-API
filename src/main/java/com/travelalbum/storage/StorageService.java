@@ -1,5 +1,6 @@
 package com.travelalbum.storage;
 
+import com.travelalbum.storage.StoredFile;
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 

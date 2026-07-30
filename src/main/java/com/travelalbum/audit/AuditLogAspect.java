@@ -12,7 +12,6 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
-/** Ghi Audit Log tự động cho method Controller có @Auditable — xem SEC-08. */
 @Aspect
 @Component
 @RequiredArgsConstructor
@@ -31,11 +30,11 @@ public class AuditLogAspect {
         try {
             Object result = pjp.proceed();
             auditLogService.log(userId, auditable.action(), auditable.targetType(),
-                targetId, ip, userAgent, "SUCCESS");
+                    targetId, ip, userAgent, "SUCCESS");
             return result;
         } catch (Exception ex) {
             auditLogService.log(userId, auditable.action(), auditable.targetType(),
-                targetId, ip, userAgent, "FAILED");
+                    targetId, ip, userAgent, "FAILED");
             throw ex;
         }
     }

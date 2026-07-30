@@ -18,13 +18,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-/**
- * Xác thực JWT + kiểm tra sid khớp session hiện tại (Single Session Login — SEC-10).
- * sid không khớp -> không set Authentication -> request rơi vào 401 ở entry point.
- */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
+
+    public static final String ATTR_TOKEN_STATUS = "jwt_token_status";
 
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
@@ -32,25 +30,31 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                     FilterChain chain) throws ServletException, IOException {
+                                    FilterChain chain) throws ServletException, IOException {
         String header = request.getHeader("Authorization");
         if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             String token = header.substring(7);
-            if (tokenProvider.isValid(token)) {
+            JwtTokenProvider.TokenStatus status = tokenProvider.validateDetailed(token);
+            request.setAttribute(ATTR_TOKEN_STATUS, status);
+
+            if (status == JwtTokenProvider.TokenStatus.VALID) {
                 Claims claims = tokenProvider.parseClaims(token);
                 Long userId = Long.valueOf(claims.getSubject());
                 String tokenSid = claims.get("sid", String.class);
 
                 String currentSid = sessionCache.getOrLoad(userId, () ->
-                    userRepository.findById(userId).map(User::getCurrentSessionId).orElse(null));
+                        userRepository.findById(userId).map(User::getCurrentSessionId).orElse(null));
 
                 if (tokenSid != null && tokenSid.equals(currentSid)) {
                     userRepository.findById(userId).ifPresent(user -> {
                         UserPrincipal principal = UserPrincipal.from(user);
                         var auth = new UsernamePasswordAuthenticationToken(
-                            principal, null, principal.getAuthorities());
+                                principal, null, principal.getAuthorities());
                         SecurityContextHolder.getContext().setAuthentication(auth);
                     });
+                } else {
+                    // sid không khớp -> phiên đã bị thay thế bởi lần đăng nhập mới ở nơi khác (SEC-10)
+                    request.setAttribute(ATTR_TOKEN_STATUS, JwtTokenProvider.TokenStatus.INVALID);
                 }
             }
         }

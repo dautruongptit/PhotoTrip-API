@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-/** Ghi log bất đồng bộ, không chặn response chính — xem SEC-08. */
 @Service
 @RequiredArgsConstructor
 public class AuditLogServiceImpl implements AuditLogService {
@@ -19,17 +18,17 @@ public class AuditLogServiceImpl implements AuditLogService {
     @Override
     @Async
     public void log(Long userId, String action, String targetType, Object targetId,
-                     String ip, String userAgent, String result) {
+                    String ip, String userAgent, String result) {
         AuditLog entry = AuditLog.builder()
-            .userId(userId)
-            .action(action)
-            .targetType(targetType)
-            .targetId(targetId != null ? Long.valueOf(targetId.toString()) : null)
-            .ipAddress(ip)
-            .userAgent(truncate(userAgent, 255))
-            .result(result)
-            .createdAt(LocalDateTime.now())
-            .build();
+                .userId(userId)
+                .action(action)
+                .targetType(targetType)
+                .targetId(targetId != null ? Long.valueOf(targetId.toString()) : null)
+                .ipAddress(ip)
+                .userAgent(truncate(userAgent, 255))
+                .result(result)
+                .createdAt(LocalDateTime.now())
+                .build();
         auditLogRepository.save(entry);
     }
 

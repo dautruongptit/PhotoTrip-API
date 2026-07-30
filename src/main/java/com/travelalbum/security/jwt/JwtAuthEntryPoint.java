@@ -17,10 +17,15 @@ public class JwtAuthEntryPoint implements AuthenticationEntryPoint {
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
-                          AuthenticationException authException) throws IOException {
+                         AuthenticationException authException) throws IOException {
+        Object status = request.getAttribute(JwtAuthFilter.ATTR_TOKEN_STATUS);
+        boolean expired = status == JwtTokenProvider.TokenStatus.EXPIRED;
+
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
         response.getWriter().write(objectMapper.writeValueAsString(
-            ApiResponse.error("Unauthorized", "UNAUTHORIZED")));
+                expired
+                        ? ApiResponse.error("Access token expired", "TOKEN_EXPIRED")
+                        : ApiResponse.error("Unauthorized", "UNAUTHORIZED")));
     }
 }

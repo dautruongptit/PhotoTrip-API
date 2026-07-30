@@ -12,11 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Gom toàn bộ endpoint tìm kiếm vào 1 Controller riêng theo đúng bảng API ở SEC-01,
- * thay vì rải rác trong EventController/PhotoController — bổ sung ở SEC-15.
- * Dùng chung EventRepository.search()/PhotoRepository.search() đã có từ SEC-03.
- */
 @RestController
 @RequiredArgsConstructor
 public class SearchController {
