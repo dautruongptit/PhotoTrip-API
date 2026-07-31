@@ -77,7 +77,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Gộp chung 1 list: origin thật từ .env + các cổng local hay dùng khi test (Vite, Postman-adjacent FE)
+        // Gộp chung 1 list: origin thật từ ..env + các cổng local hay dùng khi test (Vite, Postman-adjacent FE)
         config.setAllowedOrigins(List.of(
                 frontendUrl,
                 "http://localhost:5173",

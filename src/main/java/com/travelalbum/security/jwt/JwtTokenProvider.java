@@ -27,13 +27,13 @@ public class JwtTokenProvider {
 
     private static final String ISSUER = "travel-photo-album";
 
-    @Value("${jwt.secret}")
+    @Value("${jwt.secret:${JWT_SECRET}}")
     private String secret;
 
-    @Value("${jwt.access-exp-ms}")
+    @Value("${jwt.access-exp-ms:86400000}") // Default 1 ngày nếu không khai báo
     private long accessExpMs;
 
-    @Value("${jwt.refresh-exp-ms}")
+    @Value("${jwt.refresh-exp-ms:604800000}") // Default 7 ngày nếu không khai báo
     private long refreshExpMs;
 
     /** Trạng thái xác thực JWT — phân biệt EXPIRED (có thể tự refresh) và INVALID (phải logout). */
