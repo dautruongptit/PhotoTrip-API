@@ -12,7 +12,7 @@ public class TravelPhotoAlbumApplication {
 
     public static void main(String[] args) {
         // Đọc trực tiếp file .env.dev ở root dự án (song song với pom.xml)
-        try (InputStream input = new FileInputStream(".env")) {
+        try (InputStream input = new FileInputStream(".env.development")) {
             Properties prop = new Properties();
             prop.load(input);
             prop.forEach((key, value) -> System.setProperty(key.toString(), value.toString()));
