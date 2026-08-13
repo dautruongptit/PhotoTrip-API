@@ -1,0 +1,141 @@
+package com.travelalbum.service.impl;
+
+import com.travelalbum.dto.response.EventResponse;
+import com.travelalbum.dto.response.ShareLinkResponse;
+import com.travelalbum.entity.Event;
+import com.travelalbum.entity.ShareLink;
+import com.travelalbum.exception.NotFoundException;
+import com.travelalbum.mapper.EventMapper;
+import com.travelalbum.mapper.PhotoMapper;
+import com.travelalbum.repository.EventRepository;
+import com.travelalbum.repository.PhotoRepository;
+import com.travelalbum.repository.ShareLinkRepository;
+import com.travelalbum.service.AuditLogService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class ShareServiceImplTest {
+
+    @Mock private ShareLinkRepository shareLinkRepository;
+    @Mock private EventRepository eventRepository;
+    @Mock private PhotoRepository photoRepository;
+    @Mock private EventMapper eventMapper;
+    @Mock private PhotoMapper photoMapper;
+    @Mock private AuditLogService auditLogService;
+
+    @InjectMocks
+    private ShareServiceImpl shareService;
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(shareService, "frontendUrl", "http://triptravel.example.com");
+    }
+
+    @Test
+    void create_throwsAccessDenied_whenRequesterIsNotOwner() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+
+        assertThatThrownBy(() -> shareService.create(1L, 2L)).isInstanceOf(AccessDeniedException.class);
+        verify(shareLinkRepository, never()).save(any());
+    }
+
+    @Test
+    void create_buildsShareUrlFromFrontendUrl_whenOwner() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(shareLinkRepository.findByTokenAndActiveTrue(anyString())).thenReturn(Optional.empty());
+
+        ShareLinkResponse response = shareService.create(1L, 1L);
+
+        assertThat(response.isActive()).isTrue();
+        assertThat(response.getToken()).isNotBlank();
+        assertThat(response.getShareUrl()).isEqualTo("http://triptravel.example.com/share/" + response.getToken());
+        verify(shareLinkRepository).save(any(ShareLink.class));
+        verify(auditLogService).log(eq(1L), eq("SHARE_EVENT"), eq("EVENT"), eq(1L), any(), any(), eq("SUCCESS"));
+    }
+
+    @Test
+    void getEventByToken_throwsNotFound_whenTokenUnknown() {
+        when(shareLinkRepository.findByTokenAndActiveTrue("bad-token")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> shareService.getEventByToken("bad-token")).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void getEventByToken_throwsNotFound_whenLinkExpired() {
+        Event event = Event.builder().id(1L).build();
+        ShareLink expired = ShareLink.builder()
+                .token("tok").event(event).active(true)
+                .expiredAt(LocalDateTime.now().minusDays(1))
+                .build();
+        when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(expired));
+
+        assertThatThrownBy(() -> shareService.getEventByToken("tok")).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void getEventByToken_returnsEvent_whenActiveAndNotExpired() {
+        Event event = Event.builder().id(1L).name("Da Lat").build();
+        ShareLink link = ShareLink.builder().token("tok").event(event).active(true).expiredAt(null).build();
+        when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
+        when(eventMapper.toResponse(event)).thenReturn(EventResponse.builder().id(1L).name("Da Lat").build());
+
+        EventResponse response = shareService.getEventByToken("tok");
+
+        assertThat(response.getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void revoke_throwsAccessDenied_whenNotOwnerAndNotAdmin() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        ShareLink link = ShareLink.builder().token("tok").event(event).active(true).build();
+        when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
+
+        assertThatThrownBy(() -> shareService.revoke("tok", 2L, false)).isInstanceOf(AccessDeniedException.class);
+        assertThat(link.isActive()).isTrue();
+    }
+
+    @Test
+    void revoke_deactivatesLink_whenOwner() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        ShareLink link = ShareLink.builder().token("tok").event(event).active(true).build();
+        when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
+
+        shareService.revoke("tok", 1L, false);
+
+        assertThat(link.isActive()).isFalse();
+        verify(shareLinkRepository).save(link);
+        verify(auditLogService).log(eq(1L), eq("REVOKE_SHARE"), eq("EVENT"), eq(1L), any(), any(), eq("SUCCESS"));
+    }
+
+    @Test
+    void revoke_succeeds_whenAdminButNotOwner() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        ShareLink link = ShareLink.builder().token("tok").event(event).active(true).build();
+        when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
+
+        shareService.revoke("tok", 999L, true);
+
+        assertThat(link.isActive()).isFalse();
+    }
+}

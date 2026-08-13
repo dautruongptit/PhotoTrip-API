@@ -6,18 +6,17 @@ services:
     container_name: travelPhoto-backend
     restart: unless-stopped
     env_file:
-      - ..env
+      - .env
     environment:
-      SPRING_PROFILES_ACTIVE: prod
-      SWAGGER_ENABLED:        "true"
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       FLYWAY_BASELINE:        "false"
-      JWT_SECRET: "SuperLongSecretKeyHereAtLeast32CharactersMakeItRandom20262"
     ports:
-      - "${SERVER_PORT:-8068}:${SERVER_PORT:-8083}"
+      - "${SERVER_PORT:-8068}:${SERVER_PORT:-8068}"
     volumes:
       - ${STORAGE_ROOT_PATH:-/data/photo-storage}:/data/photo-storage
     networks:
       - shared-network
 networks:
-  shared:
+  shared-network:
+    name: ${EXTERNAL_NETWORK_NAME:-shared-network}
     external: true

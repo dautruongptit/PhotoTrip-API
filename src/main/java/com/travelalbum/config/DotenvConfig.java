@@ -18,12 +18,9 @@ public class DotenvConfig implements EnvironmentPostProcessor {
 
         Dotenv dotenv = Dotenv.configure()
                 .directory("./")
-                .filename("...env.dev")
+                .filename(".env")
                 .ignoreIfMissing()
                 .load();
-
-        System.out.println("Dotenv loaded successfully!");
-        System.out.println("JWT_SECRET = " + dotenv.get("JWT_SECRET"));
 
         Map<String, Object> props = new HashMap<>();
         dotenv.entries().forEach(entry -> props.put(entry.getKey(), entry.getValue()));
