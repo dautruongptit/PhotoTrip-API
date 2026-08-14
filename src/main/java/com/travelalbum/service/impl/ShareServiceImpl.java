@@ -64,7 +64,12 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public EventResponse getEventByToken(String token) {
+        // @Transactional bắt buộc ở đây: ShareLink.event là quan hệ LAZY, eventMapper
+        // đọc nhiều field của Event (name, description, startDate...) chứ không chỉ id
+        // — nếu không có transaction mở sẵn, proxy sẽ ném LazyInitializationException
+        // (open-in-view: false, mỗi repository call tự đóng session ngay khi trả về).
         ShareLink link = shareLinkRepository.findByTokenAndActiveTrue(token)
             .filter(l -> l.getExpiredAt() == null || l.getExpiredAt().isAfter(LocalDateTime.now()))
             .orElseThrow(() -> new NotFoundException("Share link not found or expired"));

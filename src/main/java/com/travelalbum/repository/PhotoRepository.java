@@ -17,6 +17,14 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
     Optional<Photo> findByChecksumAndEventId(String checksum, Long eventId);
 
+    /**
+     * Lấy ownerId qua join JPQL thay vì Photo.getEvent().getOwnerId() — Photo.event là
+     * quan hệ LAZY, nếu gọi ngoài transaction (vd trong Controller sau khi findById() đã
+     * đóng session) sẽ ném LazyInitializationException.
+     */
+    @Query("SELECT p.event.ownerId FROM Photo p WHERE p.id = :photoId")
+    Optional<Long> findOwnerIdByPhotoId(@Param("photoId") Long photoId);
+
     Page<Photo> findByEventId(Long eventId, Pageable pageable);
 
     List<Photo> findByIdIn(List<Long> ids);

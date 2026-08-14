@@ -102,7 +102,11 @@ public class PhotoController {
     }
 
     private String resolveOwnerStorageFolder(Photo photo) {
-        Long ownerId = photo.getEvent().getOwnerId();
+        // KHÔNG dùng photo.getEvent().getOwnerId() — Photo.event là quan hệ LAZY và
+        // Controller không chạy trong transaction, session đã đóng sau findById() nên
+        // sẽ ném LazyInitializationException. Lấy ownerId qua join JPQL thay thế.
+        Long ownerId = photoRepository.findOwnerIdByPhotoId(photo.getId())
+                .orElseThrow(() -> new NotFoundException("Event not found"));
         User owner = userRepository.findById(ownerId)
                 .orElseThrow(() -> new NotFoundException("Owner not found"));
         return owner.getStorageFolder();

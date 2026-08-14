@@ -11,7 +11,7 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       FLYWAY_BASELINE:        "false"
     ports:
-      - "${SERVER_PORT:-8068}:${SERVER_PORT:-8068}"
+      - "${SERVER_PORT:-8085}:${SERVER_PORT:-8085}"
     volumes:
       - ${STORAGE_ROOT_PATH:-/data/photo-storage}:/data/photo-storage
     networks:

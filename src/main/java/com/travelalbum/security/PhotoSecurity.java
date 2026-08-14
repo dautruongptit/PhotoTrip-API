@@ -14,8 +14,11 @@ public class PhotoSecurity {
 
     public boolean isOwner(Long photoId, Authentication authentication) {
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        return photoRepository.findById(photoId)
-            .map(p -> p.getEvent().getOwnerId().equals(principal.getId()))
+        // KHÔNG dùng findById(...).map(p -> p.getEvent().getOwnerId()...) — Photo.event
+        // là quan hệ LAZY, session đã đóng ngay sau khi findById() trả về (open-in-view:
+        // false) nên chạm vào field ngoài id sẽ ném LazyInitializationException.
+        return photoRepository.findOwnerIdByPhotoId(photoId)
+            .map(ownerId -> ownerId.equals(principal.getId()))
             .orElse(false);
     }
 }

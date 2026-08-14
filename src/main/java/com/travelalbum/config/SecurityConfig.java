@@ -82,7 +82,7 @@ public class SecurityConfig {
                 frontendUrl,
                 "http://localhost:5173",
                 "http://localhost:8443",
-                "http://localhost:8068"
+                "http://localhost:8085"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Dev-Secret"));

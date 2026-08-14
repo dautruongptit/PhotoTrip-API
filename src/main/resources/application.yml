@@ -39,7 +39,7 @@ spring:
 
 server:
   forward-headers-strategy: native   # hiểu đúng X-Forwarded-For từ Nginx (SEC-06/SEC-08)
-  port: ${SERVER_PORT:8068}
+  port: ${SERVER_PORT:8085}
   servlet:
     encoding:
       charset: UTF-8
@@ -51,11 +51,16 @@ jwt:
   refresh-exp-ms: 604800000    # 7 ngày
 
 storage:
-  root-path: /data/photo-storage
+  # Dev (chạy local, không Docker): trỏ thẳng 1 thư mục Windows qua STORAGE_ROOT_PATH
+  # trong .env.development (vd D:/My Project/tripTravel/photo).
+  # Production (Docker trên Ubuntu): STORAGE_ROOT_PATH trong .env chỉ dùng để bind-mount
+  # ở docker-compose.yml (host path -> /data/photo-storage TRONG container) — bên trong
+  # container biến này cũng đã được set đúng /data/photo-storage nên khớp với path thật.
+  root-path: ${STORAGE_ROOT_PATH:/data/photo-storage}
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:8443}
-  api-base-url: ${API_BASE_URL:http://localhost:8068}
+  api-base-url: ${API_BASE_URL:http://localhost:8085}
   cookie-secure: ${COOKIE_SECURE:true}
   dev-login-enabled: ${DEV_LOGIN_ENABLED:false}   # mặc định FALSE
   dev-login-secret: ${DEV_LOGIN_SECRET:}
