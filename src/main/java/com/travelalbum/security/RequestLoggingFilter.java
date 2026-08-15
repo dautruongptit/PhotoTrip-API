@@ -11,13 +11,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.regex.Pattern;
+import java.nio.charset.UnsupportedCharsetException;
 
 /**
  * Ghi log method + URL + tham số (query/body) + status + thời gian xử lý cho mọi request,
  * ra file (xem logging.file.name trong application.yml). Che các trường nhạy cảm
- * (password/token/secret) trước khi log — không bao giờ ghi giá trị thật ra file (SEC-02).
+ * (password/token/secret, OAuth2 code/state...) trước khi log, và loại bỏ control char khỏi
+ * mọi giá trị log để chống log injection — không bao giờ ghi giá trị thật ra file (SEC-02).
+ * Logic mask/sanitize nằm ở RequestLogMasker (tách riêng để test không cần mock servlet).
  */
 @Component
 public class RequestLoggingFilter extends OncePerRequestFilter {
@@ -27,13 +30,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     // Giới hạn số byte body được cache để đọc lại — tránh load nguyên file ảnh/video
     // lớn (multipart request cho phép tới 150MB) vào bộ nhớ chỉ để log (SEC-xx: DoS/OOM).
     private static final int MAX_CACHED_BODY_BYTES = 8 * 1024;
-
-    // Che giá trị của bất kỳ field JSON nào có tên chứa password/token/secret,
-    // không phân biệt hoa thường (vd password, newPassword, accessToken, refreshToken, dev-secret...).
-    private static final Pattern SENSITIVE_FIELD_PATTERN = Pattern.compile(
-            "(?i)(\"[^\"]*(password|token|secret)[^\"]*\"\\s*:\\s*)\"[^\"]*\"");
-
-    private static final String MASK = "\"***\"";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -51,12 +47,15 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     }
 
     private void logRequest(ContentCachingRequestWrapper request, int status, long durationMs) {
+        String uri = request.getRequestURI();
         String query = request.getQueryString();
+        String queryPart = query != null ? "?" + RequestLogMasker.maskQuery(uri, query) : "";
+
         log.info("{} {}{} params={} status={} time={}ms",
-                request.getMethod(),
-                request.getRequestURI(),
-                query != null ? "?" + maskQuery(query) : "",
-                describeBody(request),
+                RequestLogMasker.sanitizeForLog(request.getMethod()),
+                RequestLogMasker.sanitizeForLog(uri),
+                RequestLogMasker.sanitizeForLog(queryPart),
+                RequestLogMasker.sanitizeForLog(describeBody(request)),
                 status,
                 durationMs);
     }
@@ -72,26 +71,21 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             return "-";
         }
 
+        boolean truncated = buf.length >= MAX_CACHED_BODY_BYTES;
         String body = new String(buf, charsetOf(request));
-        String masked = maskJson(body);
-        return buf.length >= MAX_CACHED_BODY_BYTES ? masked + "...(truncated)" : masked;
+        String masked = contentType != null && contentType.toLowerCase().startsWith("application/x-www-form-urlencoded")
+                ? RequestLogMasker.maskFormBody(body)
+                : RequestLogMasker.maskJsonBody(body, truncated);
+        return truncated ? masked + "...(truncated)" : masked;
     }
 
-    private java.nio.charset.Charset charsetOf(HttpServletRequest request) {
+    private Charset charsetOf(HttpServletRequest request) {
         try {
             return request.getCharacterEncoding() != null
-                    ? java.nio.charset.Charset.forName(request.getCharacterEncoding())
+                    ? Charset.forName(request.getCharacterEncoding())
                     : StandardCharsets.UTF_8;
-        } catch (java.nio.charset.UnsupportedCharsetException e) {
+        } catch (UnsupportedCharsetException e) {
             return StandardCharsets.UTF_8;
         }
-    }
-
-    private String maskJson(String body) {
-        return SENSITIVE_FIELD_PATTERN.matcher(body).replaceAll("$1" + MASK);
-    }
-
-    private String maskQuery(String query) {
-        return query.replaceAll("(?i)((?:^|&)[^=&]*(password|token|secret)[^=&]*=)[^&]*", "$1" + MASK);
     }
 }
