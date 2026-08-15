@@ -1,5 +1,6 @@
 package com.travelalbum.config;
 
+import com.travelalbum.security.RequestLoggingFilter;
 import com.travelalbum.security.jwt.JwtAccessDeniedHandler;
 import com.travelalbum.security.jwt.JwtAuthEntryPoint;
 import com.travelalbum.security.jwt.JwtAuthFilter;
@@ -32,6 +33,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final RequestLoggingFilter requestLoggingFilter;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
@@ -67,6 +69,7 @@ public class SecurityConfig {
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler(oAuth2FailureHandler))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(requestLoggingFilter, JwtAuthFilter.class)
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(jwtAuthEntryPoint)
                         .accessDeniedHandler(jwtAccessDeniedHandler));

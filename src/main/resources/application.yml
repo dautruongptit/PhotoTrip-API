@@ -87,6 +87,15 @@ springdoc:
     enabled: true
 google:
 
+logging:
+  file:
+    name: logs/app.log
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 300MB
+
 vnpay:
   tmn-code: "YOUR_TMN_CODE"          # Mã website merchant, VNPay cấp khi đăng ký
   hash-secret: "YOUR_HASH_SECRET"    # Secret key merchant — tuyệt đối không lộ ra frontend/git
