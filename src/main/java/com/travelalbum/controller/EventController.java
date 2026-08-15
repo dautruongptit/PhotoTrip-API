@@ -4,6 +4,7 @@ import com.travelalbum.audit.Auditable;
 import com.travelalbum.common.ApiResponse;
 import com.travelalbum.dto.request.CreateEventRequest;
 import com.travelalbum.dto.request.UpdateEventRequest;
+import com.travelalbum.dto.response.BatchDeleteResponse;
 import com.travelalbum.dto.response.EventResponse;
 import com.travelalbum.entity.Event;
 import com.travelalbum.entity.User;
@@ -36,6 +37,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/events")
@@ -48,11 +50,12 @@ public class EventController {
     private final StorageService storageService;
 
     @GetMapping
-    public ApiResponse<Page<EventResponse>> list(Pageable pageable) {
-        return ApiResponse.success("OK", eventService.list(pageable));
+    public ApiResponse<Page<EventResponse>> list(Pageable pageable, @AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success("OK", eventService.list(pageable, principal.getId(), principal.isAdmin()));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @eventSecurity.isOwner(#id, authentication)")
     public ApiResponse<EventResponse> getById(@PathVariable Long id) {
         return ApiResponse.success("OK", eventService.getById(id));
     }
@@ -81,6 +84,16 @@ public class EventController {
     public ApiResponse<Void> delete(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
         eventService.delete(id, principal.getId(), principal.isAdmin());
         return ApiResponse.success("Event deleted", null);
+    }
+
+    // Quyền sở hữu của từng event được check bên trong EventService.deleteBatch (item nào
+    // không phải của mình thì bỏ qua, không throw cho cả request) nên chỉ cần yêu cầu đăng nhập.
+    @DeleteMapping
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public ApiResponse<BatchDeleteResponse> deleteBatch(@RequestParam List<Long> ids,
+                                                        @AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success("Batch delete processed",
+                eventService.deleteBatch(ids, principal.getId(), principal.isAdmin()));
     }
 
     @GetMapping("/{id}/cover")

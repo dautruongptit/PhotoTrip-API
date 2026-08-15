@@ -19,4 +19,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     @Query("SELECT e FROM Event e WHERE lower(e.name) LIKE lower(concat('%', :kw, '%'))")
     Page<Event> search(@Param("kw") String keyword, Pageable pageable);
+
+    @Query("SELECT e FROM Event e WHERE e.ownerId = :ownerId AND lower(e.name) LIKE lower(concat('%', :kw, '%'))")
+    Page<Event> searchByOwner(@Param("kw") String keyword, @Param("ownerId") Long ownerId, Pageable pageable);
 }

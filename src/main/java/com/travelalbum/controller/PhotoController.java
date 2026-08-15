@@ -2,6 +2,7 @@ package com.travelalbum.controller;
 
 import com.travelalbum.audit.Auditable;
 import com.travelalbum.common.ApiResponse;
+import com.travelalbum.dto.response.BatchDeleteResponse;
 import com.travelalbum.dto.response.PhotoResponse;
 import com.travelalbum.dto.response.UploadResultResponse;
 import com.travelalbum.entity.Photo;
@@ -56,6 +57,7 @@ public class PhotoController {
     }
 
     @GetMapping("/api/events/{eventId}/photos")
+    @PreAuthorize("hasRole('ADMIN') or @eventSecurity.isOwner(#eventId, authentication)")
     public ApiResponse<Page<PhotoResponse>> listByEvent(@PathVariable Long eventId, Pageable pageable) {
         return ApiResponse.success("OK", photoService.listByEvent(eventId, pageable));
     }
@@ -66,6 +68,16 @@ public class PhotoController {
     public ApiResponse<Void> delete(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
         photoService.delete(id, principal.getId(), principal.isAdmin());
         return ApiResponse.success("Photo deleted", null);
+    }
+
+    // Quyền sở hữu của từng photo được check bên trong PhotoService.deleteBatch (item nào
+    // không phải của mình thì bỏ qua, không throw cho cả request) nên chỉ cần yêu cầu đăng nhập.
+    @DeleteMapping("/api/photos")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public ApiResponse<BatchDeleteResponse> deleteBatch(@RequestParam List<Long> ids,
+                                                        @AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success("Batch delete processed",
+                photoService.deleteBatch(ids, principal.getId(), principal.isAdmin()));
     }
 
     @Auditable(action = "DOWNLOAD", targetType = "PHOTO")

@@ -1,5 +1,7 @@
 package com.travelalbum.service.impl;
 
+import com.travelalbum.dto.response.BatchDeleteFailure;
+import com.travelalbum.dto.response.BatchDeleteResponse;
 import com.travelalbum.dto.response.PhotoResponse;
 import com.travelalbum.dto.response.UploadFailure;
 import com.travelalbum.dto.response.UploadResultResponse;
@@ -35,6 +37,7 @@ public class PhotoServiceImpl implements PhotoService {
 
     private static final long MAX_SIZE = 10L * 1024 * 1024;
     private static final int MAX_FILES = 100;
+    private static final int MAX_BATCH_DELETE = 100;
     private static final Set<String> ALLOWED_MIME = Set.of("image/jpeg", "image/png", "image/webp");
 
     private final PhotoRepository photoRepository;
@@ -114,8 +117,11 @@ public class PhotoServiceImpl implements PhotoService {
     }
 
     @Override
-    public Page<PhotoResponse> search(String keyword, Pageable pageable) {
-        return photoRepository.search(keyword, pageable).map(photoMapper::toResponse);
+    public Page<PhotoResponse> search(String keyword, Pageable pageable, Long requesterId, boolean isAdmin) {
+        Page<Photo> page = isAdmin
+                ? photoRepository.search(keyword, pageable)
+                : photoRepository.searchByOwner(keyword, requesterId, pageable);
+        return page.map(photoMapper::toResponse);
     }
 
     @Override
@@ -141,6 +147,33 @@ public class PhotoServiceImpl implements PhotoService {
 
         photoRepository.delete(photo);
         auditLogService.log(requesterId, "DELETE_PHOTO", "PHOTO", photoId, null, null, "SUCCESS");
+    }
+
+    @Override
+    @Transactional
+    public BatchDeleteResponse deleteBatch(List<Long> photoIds, Long requesterId, boolean isAdmin) {
+        if (photoIds.isEmpty()) {
+            throw new BusinessException("No photo id provided", "EMPTY_LIST");
+        }
+        if (photoIds.size() > MAX_BATCH_DELETE) {
+            throw new BusinessException("Too many photos in one request", "TOO_MANY_ITEMS");
+        }
+
+        List<Long> deletedIds = new ArrayList<>();
+        List<BatchDeleteFailure> failures = new ArrayList<>();
+        for (Long photoId : photoIds) {
+            try {
+                // Gọi lại delete() để tái dùng nguyên logic check quyền/dọn storage/audit log —
+                // item nào lỗi thì bỏ qua, không làm hỏng cả batch.
+                delete(photoId, requesterId, isAdmin);
+                deletedIds.add(photoId);
+            } catch (NotFoundException ex) {
+                failures.add(new BatchDeleteFailure(photoId, "NOT_FOUND"));
+            } catch (AccessDeniedException ex) {
+                failures.add(new BatchDeleteFailure(photoId, "ACCESS_DENIED"));
+            }
+        }
+        return new BatchDeleteResponse(deletedIds, failures);
     }
 
     private void validate(MultipartFile file) {

@@ -2,6 +2,8 @@ package com.travelalbum.service.impl;
 
 import com.travelalbum.dto.request.CreateEventRequest;
 import com.travelalbum.dto.request.UpdateEventRequest;
+import com.travelalbum.dto.response.BatchDeleteFailure;
+import com.travelalbum.dto.response.BatchDeleteResponse;
 import com.travelalbum.dto.response.EventResponse;
 import com.travelalbum.entity.Event;
 import com.travelalbum.entity.User;
@@ -25,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,6 +38,7 @@ public class EventServiceImpl implements EventService {
 
     private static final Set<String> ALLOWED_COVER_MIME = Set.of("image/jpeg", "image/png", "image/webp");
     private static final long MAX_COVER_SIZE = 10L * 1024 * 1024;
+    private static final int MAX_BATCH_DELETE = 100;
 
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
@@ -122,6 +127,33 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional
+    public BatchDeleteResponse deleteBatch(List<Long> ids, Long requesterId, boolean isAdmin) {
+        if (ids.isEmpty()) {
+            throw new BusinessException("No event id provided", "EMPTY_LIST");
+        }
+        if (ids.size() > MAX_BATCH_DELETE) {
+            throw new BusinessException("Too many events in one request", "TOO_MANY_ITEMS");
+        }
+
+        List<Long> deletedIds = new ArrayList<>();
+        List<BatchDeleteFailure> failures = new ArrayList<>();
+        for (Long id : ids) {
+            try {
+                // Gọi lại delete() để tái dùng nguyên logic check quyền/dọn storage/audit log —
+                // item nào lỗi thì bỏ qua, không làm hỏng cả batch.
+                delete(id, requesterId, isAdmin);
+                deletedIds.add(id);
+            } catch (NotFoundException ex) {
+                failures.add(new BatchDeleteFailure(id, "NOT_FOUND"));
+            } catch (AccessDeniedException ex) {
+                failures.add(new BatchDeleteFailure(id, "ACCESS_DENIED"));
+            }
+        }
+        return new BatchDeleteResponse(deletedIds, failures);
+    }
+
+    @Override
     public EventResponse getById(Long id) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Event not found"));
@@ -129,13 +161,15 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public Page<EventResponse> list(Pageable pageable) {
-        return toResponsePage(eventRepository.findAll(pageable));
+    public Page<EventResponse> list(Pageable pageable, Long requesterId, boolean isAdmin) {
+        // ADMIN xem toàn bộ (dùng cho AdminController/dashboard quản trị); USER chỉ thấy
+        // event của chính mình — trước đây findAll() không lọc, lộ event của user khác.
+        return toResponsePage(isAdmin ? eventRepository.findAll(pageable) : eventRepository.findByOwnerId(requesterId, pageable));
     }
 
     @Override
-    public Page<EventResponse> search(String keyword, Pageable pageable) {
-        return toResponsePage(eventRepository.search(keyword, pageable));
+    public Page<EventResponse> search(String keyword, Pageable pageable, Long requesterId, boolean isAdmin) {
+        return toResponsePage(isAdmin ? eventRepository.search(keyword, pageable) : eventRepository.searchByOwner(keyword, requesterId, pageable));
     }
 
     // Map cả trang event 1 lần (EventMapper.toResponseList batch owner lookup) thay vì

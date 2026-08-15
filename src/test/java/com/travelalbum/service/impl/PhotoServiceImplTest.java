@@ -14,6 +14,7 @@ import com.travelalbum.repository.UserRepository;
 import com.travelalbum.service.AuditLogService;
 import com.travelalbum.storage.StorageService;
 import com.travelalbum.storage.StoredFile;
+import com.travelalbum.dto.response.BatchDeleteResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,7 +24,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -177,5 +180,53 @@ class PhotoServiceImplTest {
         verify(storageService).delete("dautruong_000001", "ev-folder/x.jpg");
         verify(photoRepository).delete(photo);
         verify(auditLogService).log(eq(1L), eq("DELETE_PHOTO"), eq("PHOTO"), eq(500L), any(), any(), eq("SUCCESS"));
+    }
+
+    @Test
+    void deleteBatch_skipsFailedItems_andDeletesTheRest() {
+        Event event = ownedEvent();
+        Photo ownedPhoto = Photo.builder().id(500L).event(event).path("ev-folder/x.jpg").size(1000L).build();
+        Event otherEvent = Event.builder().id(20L).ownerId(2L).storageFolder("other-folder").build();
+        Photo notOwnedPhoto = Photo.builder().id(600L).event(otherEvent).path("other-folder/y.jpg").size(500L).build();
+        User owner = owner(1000L, 10_000_000L);
+
+        when(photoRepository.findById(500L)).thenReturn(Optional.of(ownedPhoto));
+        when(photoRepository.findById(600L)).thenReturn(Optional.of(notOwnedPhoto));
+        when(photoRepository.findById(999L)).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+
+        BatchDeleteResponse result = photoService.deleteBatch(List.of(500L, 600L, 999L), 1L, false);
+
+        assertThat(result.getDeletedIds()).containsExactly(500L);
+        assertThat(result.getFailures()).hasSize(2);
+        assertThat(result.getFailures()).anySatisfy(f -> {
+            assertThat(f.getId()).isEqualTo(600L);
+            assertThat(f.getErrorCode()).isEqualTo("ACCESS_DENIED");
+        });
+        assertThat(result.getFailures()).anySatisfy(f -> {
+            assertThat(f.getId()).isEqualTo(999L);
+            assertThat(f.getErrorCode()).isEqualTo("NOT_FOUND");
+        });
+        verify(photoRepository).delete(ownedPhoto);
+        verify(photoRepository, never()).delete(notOwnedPhoto);
+    }
+
+    @Test
+    void deleteBatch_throwsBusinessException_whenTooManyIds() {
+        List<Long> ids = new ArrayList<>();
+        for (long i = 0; i < 101; i++) {
+            ids.add(i);
+        }
+
+        assertThatThrownBy(() -> photoService.deleteBatch(ids, 1L, false))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo("TOO_MANY_ITEMS"));
+    }
+
+    @Test
+    void deleteBatch_throwsBusinessException_whenEmpty() {
+        assertThatThrownBy(() -> photoService.deleteBatch(List.of(), 1L, false))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo("EMPTY_LIST"));
     }
 }

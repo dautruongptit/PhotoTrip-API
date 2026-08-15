@@ -60,7 +60,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/dev/**").permitAll()
                         .requestMatchers("/api/auth/refresh", "/api/auth/logout").permitAll()
                         .requestMatchers("/api/share/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/photos/**").permitAll()
+                        // CHỈ 2 endpoint này thật sự cần public: <img src> không gắn được
+                        // Authorization header. KHÔNG permitAll cả "/api/events/**" — trước đây
+                        // làm vậy vô tình để lộ listing/search/getById/listPhotosByEvent (đọc
+                        // được event + ảnh của MỌI user, kể cả chưa đăng nhập). Các endpoint đó
+                        // giờ yêu cầu đăng nhập + lọc theo owner (xem EventController/PhotoController).
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/cover", "/api/photos/download/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

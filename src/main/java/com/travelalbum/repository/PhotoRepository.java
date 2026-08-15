@@ -35,6 +35,9 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
     @Query("SELECT p FROM Photo p WHERE lower(p.originalName) LIKE lower(concat('%', :kw, '%'))")
     Page<Photo> search(@Param("kw") String keyword, Pageable pageable);
 
+    @Query("SELECT p FROM Photo p WHERE p.event.ownerId = :ownerId AND lower(p.originalName) LIKE lower(concat('%', :kw, '%'))")
+    Page<Photo> searchByOwner(@Param("kw") String keyword, @Param("ownerId") Long ownerId, Pageable pageable);
+
     long countByUploadedTimeBetween(LocalDateTime from, LocalDateTime to);
 
     @Query(value = "SELECT DATE_FORMAT(uploaded_time, '%Y-%m') AS month, COUNT(*) AS cnt "

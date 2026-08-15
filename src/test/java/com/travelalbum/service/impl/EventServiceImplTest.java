@@ -2,6 +2,7 @@ package com.travelalbum.service.impl;
 
 import com.travelalbum.dto.request.CreateEventRequest;
 import com.travelalbum.dto.request.UpdateEventRequest;
+import com.travelalbum.dto.response.BatchDeleteResponse;
 import com.travelalbum.dto.response.EventResponse;
 import com.travelalbum.entity.Event;
 import com.travelalbum.entity.User;
@@ -21,6 +22,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -182,5 +185,51 @@ class EventServiceImplTest {
         when(eventRepository.findById(42L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> eventService.getById(42L)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void deleteBatch_skipsFailedItems_andDeletesTheRest() {
+        Event ownedEvent = Event.builder().id(5L).ownerId(1L).storageFolder("ev-folder").build();
+        Event notOwnedEvent = Event.builder().id(6L).ownerId(99L).storageFolder("other-folder").build();
+        User owner = User.builder().id(1L).storageFolder("dautruong_000001").build();
+
+        when(eventRepository.findById(5L)).thenReturn(Optional.of(ownedEvent));
+        when(eventRepository.findById(6L)).thenReturn(Optional.of(notOwnedEvent));
+        when(eventRepository.findById(7L)).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+
+        BatchDeleteResponse result = eventService.deleteBatch(List.of(5L, 6L, 7L), 1L, false);
+
+        assertThat(result.getDeletedIds()).containsExactly(5L);
+        assertThat(result.getFailures()).hasSize(2);
+        assertThat(result.getFailures()).anySatisfy(f -> {
+            assertThat(f.getId()).isEqualTo(6L);
+            assertThat(f.getErrorCode()).isEqualTo("ACCESS_DENIED");
+        });
+        assertThat(result.getFailures()).anySatisfy(f -> {
+            assertThat(f.getId()).isEqualTo(7L);
+            assertThat(f.getErrorCode()).isEqualTo("NOT_FOUND");
+        });
+        verify(eventRepository).delete(ownedEvent);
+        verify(eventRepository, never()).delete(notOwnedEvent);
+    }
+
+    @Test
+    void deleteBatch_throwsBusinessException_whenTooManyIds() {
+        List<Long> ids = new ArrayList<>();
+        for (long i = 0; i < 101; i++) {
+            ids.add(i);
+        }
+
+        assertThatThrownBy(() -> eventService.deleteBatch(ids, 1L, false))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo("TOO_MANY_ITEMS"));
+    }
+
+    @Test
+    void deleteBatch_throwsBusinessException_whenEmpty() {
+        assertThatThrownBy(() -> eventService.deleteBatch(List.of(), 1L, false))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo("EMPTY_LIST"));
     }
 }
