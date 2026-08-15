@@ -24,6 +24,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -65,6 +66,7 @@ public class DevAuthController {
     private boolean cookieSecure;
 
     @PostMapping("/login")
+    @Transactional
     public ApiResponse<LoginResponse> devLogin(@Valid @RequestBody DevLoginRequest req,
                                                @RequestHeader(value = "X-Dev-Secret", required = false) String providedSecret,
                                                HttpServletRequest request,
