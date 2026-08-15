@@ -17,6 +17,7 @@ import com.travelalbum.storage.StorageService;
 import com.travelalbum.storage.StoredFile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -129,12 +130,18 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public Page<EventResponse> list(Pageable pageable) {
-        return eventRepository.findAll(pageable).map(eventMapper::toResponse);
+        return toResponsePage(eventRepository.findAll(pageable));
     }
 
     @Override
     public Page<EventResponse> search(String keyword, Pageable pageable) {
-        return eventRepository.search(keyword, pageable).map(eventMapper::toResponse);
+        return toResponsePage(eventRepository.search(keyword, pageable));
+    }
+
+    // Map cả trang event 1 lần (EventMapper.toResponseList batch owner lookup) thay vì
+    // Page.map(eventMapper::toResponse) — tránh N+1 query lấy owner cho từng event.
+    private Page<EventResponse> toResponsePage(Page<Event> events) {
+        return new PageImpl<>(eventMapper.toResponseList(events.getContent()), events.getPageable(), events.getTotalElements());
     }
 
     private void validateCoverImage(MultipartFile file) {
