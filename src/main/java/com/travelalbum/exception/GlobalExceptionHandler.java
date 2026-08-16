@@ -5,11 +5,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 /**
@@ -41,6 +43,16 @@ public class GlobalExceptionHandler {
             .orElse("Validation failed");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(ApiResponse.error(msg, "VALIDATION_ERROR"));
+    }
+
+    /**
+     * Query param sai kiểu (vd ?role=OWNER) hoặc JSON body không parse được (vd {"role":"ADMIN"})
+     * là lỗi của client — trả 400 thay vì rơi xuống handleUnknown thành 500.
+     */
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, HttpMessageNotReadableException.class})
+    public ResponseEntity<ApiResponse<Void>> handleBadInput(Exception ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ApiResponse.error("Invalid request parameter or body", "VALIDATION_ERROR"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

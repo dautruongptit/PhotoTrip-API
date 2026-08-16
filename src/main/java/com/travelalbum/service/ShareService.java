@@ -12,5 +12,6 @@ public interface ShareService {
     EventResponse getEventByToken(String token);
     Page<PhotoResponse> listPhotosByToken(String token, Pageable pageable);
     void revoke(String token, Long requesterId, boolean isAdmin);
-    void joinByToken(String token, Long userId);
+    /** @return id của event vừa join, để client biết điều hướng đi đâu sau khi join. */
+    Long joinByToken(String token, Long userId);
 }

@@ -52,7 +52,7 @@ class EventInviteServiceImplTest {
     void invite_throwsAccessDenied_whenRequesterNotOwner() {
         when(eventRepository.findById(10L)).thenReturn(Optional.of(event()));
 
-        assertThatThrownBy(() -> eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 2L))
+        assertThatThrownBy(() -> eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 2L, false))
                 .isInstanceOf(AccessDeniedException.class);
         verify(eventInviteRepository, never()).save(any());
     }
@@ -62,7 +62,7 @@ class EventInviteServiceImplTest {
         when(eventRepository.findById(10L)).thenReturn(Optional.of(event()));
         when(userRepository.findByEmail("nobody@test.com")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> eventInviteService.invite(10L, "nobody@test.com", EventMemberRole.EDITOR, 1L))
+        assertThatThrownBy(() -> eventInviteService.invite(10L, "nobody@test.com", EventMemberRole.EDITOR, 1L, false))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -71,7 +71,7 @@ class EventInviteServiceImplTest {
         when(eventRepository.findById(10L)).thenReturn(Optional.of(event()));
         when(userRepository.findByEmail("owner@test.com")).thenReturn(Optional.of(User.builder().id(1L).email("owner@test.com").build()));
 
-        assertThatThrownBy(() -> eventInviteService.invite(10L, "owner@test.com", EventMemberRole.EDITOR, 1L))
+        assertThatThrownBy(() -> eventInviteService.invite(10L, "owner@test.com", EventMemberRole.EDITOR, 1L, false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo("CANNOT_INVITE_SELF"));
     }
@@ -82,7 +82,7 @@ class EventInviteServiceImplTest {
         when(userRepository.findByEmail("member@test.com")).thenReturn(Optional.of(User.builder().id(2L).email("member@test.com").build()));
         when(eventMemberRepository.existsByEventIdAndUserId(10L, 2L)).thenReturn(true);
 
-        assertThatThrownBy(() -> eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 1L))
+        assertThatThrownBy(() -> eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 1L, false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo("ALREADY_MEMBER"));
     }
@@ -95,7 +95,7 @@ class EventInviteServiceImplTest {
         when(eventInviteRepository.findByEventIdAndInvitedUserId(10L, 2L))
                 .thenReturn(Optional.of(EventInvite.builder().id(99L).build()));
 
-        assertThatThrownBy(() -> eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 1L))
+        assertThatThrownBy(() -> eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 1L, false))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo("ALREADY_INVITED"));
     }
@@ -112,7 +112,7 @@ class EventInviteServiceImplTest {
             return i;
         });
 
-        EventInviteResponse response = eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 1L);
+        EventInviteResponse response = eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 1L, false);
 
         assertThat(response.getId()).isEqualTo(500L);
         assertThat(response.getEventId()).isEqualTo(10L);
@@ -120,6 +120,26 @@ class EventInviteServiceImplTest {
         assertThat(response.getRole()).isEqualTo(EventMemberRole.EDITOR);
         assertThat(response.getStatus()).isEqualTo(InviteStatus.PENDING);
         verify(auditLogService).log(eq(1L), eq("INVITE_MEMBER"), eq("EVENT"), eq(10L), any(), any(), eq("SUCCESS"));
+    }
+
+    @Test
+    void invite_succeedsForAdmin_evenIfNotOwner() {
+        when(eventRepository.findById(10L)).thenReturn(Optional.of(event()));
+        when(userRepository.findByEmail("member@test.com")).thenReturn(Optional.of(User.builder().id(2L).email("member@test.com").build()));
+        when(eventMemberRepository.existsByEventIdAndUserId(10L, 2L)).thenReturn(false);
+        when(eventInviteRepository.findByEventIdAndInvitedUserId(10L, 2L)).thenReturn(Optional.empty());
+        when(eventInviteRepository.save(any(EventInvite.class))).thenAnswer(inv -> {
+            EventInvite i = inv.getArgument(0);
+            i.setId(501L);
+            return i;
+        });
+
+        // 999L không phải owner (owner = 1L) — chỉ đi lọt được nhờ isAdmin = true.
+        EventInviteResponse response = eventInviteService.invite(10L, "member@test.com", EventMemberRole.EDITOR, 999L, true);
+
+        assertThat(response.getId()).isEqualTo(501L);
+        assertThat(response.getEventId()).isEqualTo(10L);
+        assertThat(response.getStatus()).isEqualTo(InviteStatus.PENDING);
     }
 
     @Test
@@ -140,8 +160,9 @@ class EventInviteServiceImplTest {
         when(eventInviteRepository.findById(1L)).thenReturn(Optional.of(invite));
         when(eventMemberRepository.existsByEventIdAndUserId(10L, 2L)).thenReturn(false);
 
-        eventInviteService.accept(1L, 2L);
+        Long returnedEventId = eventInviteService.accept(1L, 2L);
 
+        assertThat(returnedEventId).isEqualTo(10L);
         assertThat(invite.getStatus()).isEqualTo(InviteStatus.ACCEPTED);
         assertThat(invite.getRespondedAt()).isNotNull();
         ArgumentCaptor<com.travelalbum.entity.EventMember> captor = ArgumentCaptor.forClass(com.travelalbum.entity.EventMember.class);

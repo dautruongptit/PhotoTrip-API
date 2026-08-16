@@ -173,8 +173,9 @@ class ShareServiceImplTest {
         when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
         when(eventMemberRepository.existsByEventIdAndUserId(1L, 2L)).thenReturn(false);
 
-        shareService.joinByToken("tok", 2L);
+        Long returnedEventId = shareService.joinByToken("tok", 2L);
 
+        assertThat(returnedEventId).isEqualTo(1L);
         verify(eventMemberRepository).save(argThat((EventMember m) ->
                 m.getUserId().equals(2L) && m.getRole() == EventMemberRole.EDITOR && m.getInvitedBy().equals(1L)));
         verify(auditLogService).log(eq(2L), eq("JOIN_EVENT"), eq("EVENT"), eq(1L), any(), any(), eq("SUCCESS"));
@@ -188,8 +189,23 @@ class ShareServiceImplTest {
         when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
         when(eventMemberRepository.existsByEventIdAndUserId(1L, 2L)).thenReturn(true);
 
-        shareService.joinByToken("tok", 2L);
+        Long returnedEventId = shareService.joinByToken("tok", 2L);
 
+        assertThat(returnedEventId).isEqualTo(1L);
+        verify(eventMemberRepository, never()).save(any());
+        verify(auditLogService, never()).log(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void joinByToken_isNoOp_whenOwnerJoinsTheirOwnLink() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        ShareLink link = ShareLink.builder().token("tok").event(event).active(true)
+                .role(EventMemberRole.EDITOR).build();
+        when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
+
+        Long returnedEventId = shareService.joinByToken("tok", 1L);
+
+        assertThat(returnedEventId).isEqualTo(1L);
         verify(eventMemberRepository, never()).save(any());
         verify(auditLogService, never()).log(any(), any(), any(), any(), any(), any(), any());
     }

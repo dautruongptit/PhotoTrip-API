@@ -62,9 +62,12 @@ public class PhotoController {
         return ApiResponse.success("OK", photoService.listByEvent(eventId, pageable));
     }
 
+    // Quyền được check đầy đủ (admin/owner/uploader) bên trong PhotoService.delete —
+    // @PreAuthorize chỉ cần yêu cầu đăng nhập. @photoSecurity.isOwner chỉ biết owner của
+    // event nên sẽ chặn nhầm EDITOR xoá đúng ảnh mình đã upload.
     @Auditable(action = "DELETE_PHOTO", targetType = "PHOTO")
     @DeleteMapping("/api/photos/{id}")
-    @PreAuthorize("hasRole('ADMIN') or @photoSecurity.isOwner(#id, authentication)")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ApiResponse<Void> delete(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
         photoService.delete(id, principal.getId(), principal.isAdmin());
         return ApiResponse.success("Photo deleted", null);

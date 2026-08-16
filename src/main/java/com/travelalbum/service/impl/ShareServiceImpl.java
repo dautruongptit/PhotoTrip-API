@@ -106,13 +106,18 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     @Transactional
-    public void joinByToken(String token, Long userId) {
+    public Long joinByToken(String token, Long userId) {
         ShareLink link = shareLinkRepository.findByTokenAndActiveTrue(token)
             .filter(l -> l.getExpiredAt() == null || l.getExpiredAt().isAfter(LocalDateTime.now()))
             .orElseThrow(() -> new NotFoundException("Share link not found or expired"));
         Long eventId = link.getEvent().getId();
+        // Owner tự bấm link share của chính mình thì không tạo membership (họ đã có full quyền)
+        // — cùng tinh thần với guard CANNOT_INVITE_SELF trong EventInviteServiceImpl.invite.
+        if (link.getEvent().getOwnerId().equals(userId)) {
+            return eventId;
+        }
         if (eventMemberRepository.existsByEventIdAndUserId(eventId, userId)) {
-            return;
+            return eventId;
         }
         EventMember member = EventMember.builder()
             .event(link.getEvent())
@@ -122,6 +127,7 @@ public class ShareServiceImpl implements ShareService {
             .build();
         eventMemberRepository.save(member);
         auditLogService.log(userId, "JOIN_EVENT", "EVENT", eventId, null, null, "SUCCESS");
+        return eventId;
     }
 
     private String generateUniqueToken() {

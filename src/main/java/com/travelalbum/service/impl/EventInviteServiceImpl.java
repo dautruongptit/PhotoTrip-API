@@ -35,10 +35,10 @@ public class EventInviteServiceImpl implements EventInviteService {
 
     @Override
     @Transactional
-    public EventInviteResponse invite(Long eventId, String email, EventMemberRole role, Long inviterId) {
+    public EventInviteResponse invite(Long eventId, String email, EventMemberRole role, Long inviterId, boolean isAdmin) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event not found"));
-        if (!event.getOwnerId().equals(inviterId)) {
+        if (!isAdmin && !event.getOwnerId().equals(inviterId)) {
             throw new AccessDeniedException("Not the owner of this event");
         }
         User invitedUser = userRepository.findByEmail(email)
@@ -78,7 +78,7 @@ public class EventInviteServiceImpl implements EventInviteService {
 
     @Override
     @Transactional
-    public void accept(Long inviteId, Long userId) {
+    public Long accept(Long inviteId, Long userId) {
         EventInvite invite = getOwnPendingInvite(inviteId, userId);
         invite.setStatus(InviteStatus.ACCEPTED);
         invite.setRespondedAt(LocalDateTime.now());
@@ -95,6 +95,7 @@ public class EventInviteServiceImpl implements EventInviteService {
             eventMemberRepository.save(member);
         }
         auditLogService.log(userId, "ACCEPT_INVITE", "EVENT", eventId, null, null, "SUCCESS");
+        return eventId;
     }
 
     @Override

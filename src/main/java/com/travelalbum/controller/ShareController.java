@@ -45,9 +45,8 @@ public class ShareController {
 
     @PostMapping("/api/share/{token}/join")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    public ApiResponse<Void> join(@PathVariable String token, @AuthenticationPrincipal UserPrincipal principal) {
-        shareService.joinByToken(token, principal.getId());
-        return ApiResponse.success("Joined event", null);
+    public ApiResponse<Long> join(@PathVariable String token, @AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success("Joined event", shareService.joinByToken(token, principal.getId()));
     }
 
     @DeleteMapping("/api/share/{token}")

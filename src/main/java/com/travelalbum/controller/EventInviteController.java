@@ -29,7 +29,7 @@ public class EventInviteController {
                                                      @Valid @RequestBody InviteMemberRequest req,
                                                      @AuthenticationPrincipal UserPrincipal principal) {
         return ApiResponse.success("Invite sent",
-                eventInviteService.invite(id, req.getEmail(), req.getRole(), principal.getId()));
+                eventInviteService.invite(id, req.getEmail(), req.getRole(), principal.getId(), principal.isAdmin()));
     }
 
     @GetMapping("/api/invites/me")
@@ -40,9 +40,8 @@ public class EventInviteController {
 
     @PostMapping("/api/invites/{id}/accept")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    public ApiResponse<Void> accept(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
-        eventInviteService.accept(id, principal.getId());
-        return ApiResponse.success("Invite accepted", null);
+    public ApiResponse<Long> accept(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
+        return ApiResponse.success("Invite accepted", eventInviteService.accept(id, principal.getId()));
     }
 
     @PostMapping("/api/invites/{id}/decline")
