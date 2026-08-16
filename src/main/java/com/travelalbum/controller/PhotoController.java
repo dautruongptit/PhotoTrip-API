@@ -57,7 +57,7 @@ public class PhotoController {
     }
 
     @GetMapping("/api/events/{eventId}/photos")
-    @PreAuthorize("hasRole('ADMIN') or @eventSecurity.isOwner(#eventId, authentication)")
+    @PreAuthorize("hasRole('ADMIN') or @eventSecurity.canView(#eventId, authentication)")
     public ApiResponse<Page<PhotoResponse>> listByEvent(@PathVariable Long eventId, Pageable pageable) {
         return ApiResponse.success("OK", photoService.listByEvent(eventId, pageable));
     }

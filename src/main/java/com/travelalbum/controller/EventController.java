@@ -55,7 +55,7 @@ public class EventController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or @eventSecurity.isOwner(#id, authentication)")
+    @PreAuthorize("hasRole('ADMIN') or @eventSecurity.canView(#id, authentication)")
     public ApiResponse<EventResponse> getById(@PathVariable Long id) {
         return ApiResponse.success("OK", eventService.getById(id));
     }
