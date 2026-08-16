@@ -3,10 +3,13 @@ package com.travelalbum.service.impl;
 import com.travelalbum.dto.response.EventResponse;
 import com.travelalbum.dto.response.ShareLinkResponse;
 import com.travelalbum.entity.Event;
+import com.travelalbum.entity.EventMember;
 import com.travelalbum.entity.ShareLink;
+import com.travelalbum.enums.EventMemberRole;
 import com.travelalbum.exception.NotFoundException;
 import com.travelalbum.mapper.EventMapper;
 import com.travelalbum.mapper.PhotoMapper;
+import com.travelalbum.repository.EventMemberRepository;
 import com.travelalbum.repository.EventRepository;
 import com.travelalbum.repository.PhotoRepository;
 import com.travelalbum.repository.ShareLinkRepository;
@@ -27,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,6 +42,7 @@ class ShareServiceImplTest {
     @Mock private ShareLinkRepository shareLinkRepository;
     @Mock private EventRepository eventRepository;
     @Mock private PhotoRepository photoRepository;
+    @Mock private EventMemberRepository eventMemberRepository;
     @Mock private EventMapper eventMapper;
     @Mock private PhotoMapper photoMapper;
     @Mock private AuditLogService auditLogService;
@@ -55,7 +60,8 @@ class ShareServiceImplTest {
         Event event = Event.builder().id(1L).ownerId(1L).build();
         when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
 
-        assertThatThrownBy(() -> shareService.create(1L, 2L)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> shareService.create(1L, 2L, EventMemberRole.VIEWER))
+                .isInstanceOf(AccessDeniedException.class);
         verify(shareLinkRepository, never()).save(any());
     }
 
@@ -65,13 +71,25 @@ class ShareServiceImplTest {
         when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
         when(shareLinkRepository.findByTokenAndActiveTrue(anyString())).thenReturn(Optional.empty());
 
-        ShareLinkResponse response = shareService.create(1L, 1L);
+        ShareLinkResponse response = shareService.create(1L, 1L, EventMemberRole.VIEWER);
 
         assertThat(response.isActive()).isTrue();
         assertThat(response.getToken()).isNotBlank();
         assertThat(response.getShareUrl()).isEqualTo("http://triptravel.example.com/share/" + response.getToken());
+        assertThat(response.getRole()).isEqualTo(EventMemberRole.VIEWER);
         verify(shareLinkRepository).save(any(ShareLink.class));
         verify(auditLogService).log(eq(1L), eq("SHARE_EVENT"), eq("EVENT"), eq(1L), any(), any(), eq("SUCCESS"));
+    }
+
+    @Test
+    void create_defaultsToViewerRole_whenRoleNotProvided() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(shareLinkRepository.findByTokenAndActiveTrue(anyString())).thenReturn(Optional.empty());
+
+        ShareLinkResponse response = shareService.create(1L, 1L, null);
+
+        assertThat(response.getRole()).isEqualTo(EventMemberRole.VIEWER);
     }
 
     @Test
@@ -137,5 +155,42 @@ class ShareServiceImplTest {
         shareService.revoke("tok", 999L, true);
 
         assertThat(link.isActive()).isFalse();
+    }
+
+    @Test
+    void joinByToken_throwsNotFound_whenTokenUnknown() {
+        when(shareLinkRepository.findByTokenAndActiveTrue("bad-token")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> shareService.joinByToken("bad-token", 2L)).isInstanceOf(NotFoundException.class);
+        verify(eventMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void joinByToken_createsMemberWithLinkRole() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        ShareLink link = ShareLink.builder().token("tok").event(event).active(true)
+                .role(EventMemberRole.EDITOR).createdBy(1L).build();
+        when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
+        when(eventMemberRepository.existsByEventIdAndUserId(1L, 2L)).thenReturn(false);
+
+        shareService.joinByToken("tok", 2L);
+
+        verify(eventMemberRepository).save(argThat((EventMember m) ->
+                m.getUserId().equals(2L) && m.getRole() == EventMemberRole.EDITOR && m.getInvitedBy().equals(1L)));
+        verify(auditLogService).log(eq(2L), eq("JOIN_EVENT"), eq("EVENT"), eq(1L), any(), any(), eq("SUCCESS"));
+    }
+
+    @Test
+    void joinByToken_isIdempotent_whenAlreadyMember() {
+        Event event = Event.builder().id(1L).ownerId(1L).build();
+        ShareLink link = ShareLink.builder().token("tok").event(event).active(true)
+                .role(EventMemberRole.VIEWER).build();
+        when(shareLinkRepository.findByTokenAndActiveTrue("tok")).thenReturn(Optional.of(link));
+        when(eventMemberRepository.existsByEventIdAndUserId(1L, 2L)).thenReturn(true);
+
+        shareService.joinByToken("tok", 2L);
+
+        verify(eventMemberRepository, never()).save(any());
+        verify(auditLogService, never()).log(any(), any(), any(), any(), any(), any(), any());
     }
 }

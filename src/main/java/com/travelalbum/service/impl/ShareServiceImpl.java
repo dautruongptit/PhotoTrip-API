@@ -4,10 +4,13 @@ import com.travelalbum.dto.response.EventResponse;
 import com.travelalbum.dto.response.PhotoResponse;
 import com.travelalbum.dto.response.ShareLinkResponse;
 import com.travelalbum.entity.Event;
+import com.travelalbum.entity.EventMember;
 import com.travelalbum.entity.ShareLink;
+import com.travelalbum.enums.EventMemberRole;
 import com.travelalbum.exception.NotFoundException;
 import com.travelalbum.mapper.EventMapper;
 import com.travelalbum.mapper.PhotoMapper;
+import com.travelalbum.repository.EventMemberRepository;
 import com.travelalbum.repository.EventRepository;
 import com.travelalbum.repository.PhotoRepository;
 import com.travelalbum.repository.ShareLinkRepository;
@@ -31,6 +34,7 @@ public class ShareServiceImpl implements ShareService {
     private final ShareLinkRepository shareLinkRepository;
     private final EventRepository eventRepository;
     private final PhotoRepository photoRepository;
+    private final EventMemberRepository eventMemberRepository;
     private final EventMapper eventMapper;
     private final PhotoMapper photoMapper;
     private final AuditLogService auditLogService;
@@ -40,18 +44,20 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     @Transactional
-    public ShareLinkResponse create(Long eventId, Long userId) {
+    public ShareLinkResponse create(Long eventId, Long userId, EventMemberRole role) {
         Event event = eventRepository.findById(eventId)
             .orElseThrow(() -> new NotFoundException("Event not found"));
         if (!event.getOwnerId().equals(userId)) {
             throw new AccessDeniedException("Not the owner of this event");
         }
+        EventMemberRole linkRole = role != null ? role : EventMemberRole.VIEWER;
         String token = generateUniqueToken();
         ShareLink link = ShareLink.builder()
             .event(event)
             .token(token)
             .createdBy(userId)
             .active(true)
+            .role(linkRole)
             .build();
         shareLinkRepository.save(link);
         auditLogService.log(userId, "SHARE_EVENT", "EVENT", eventId, null, null, "SUCCESS");
@@ -60,6 +66,7 @@ public class ShareServiceImpl implements ShareService {
             .token(token)
             .shareUrl(frontendUrl + "/share/" + token)
             .active(true)
+            .role(linkRole)
             .build();
     }
 
@@ -95,6 +102,26 @@ public class ShareServiceImpl implements ShareService {
         link.setActive(false);
         shareLinkRepository.save(link);
         auditLogService.log(requesterId, "REVOKE_SHARE", "EVENT", link.getEvent().getId(), null, null, "SUCCESS");
+    }
+
+    @Override
+    @Transactional
+    public void joinByToken(String token, Long userId) {
+        ShareLink link = shareLinkRepository.findByTokenAndActiveTrue(token)
+            .filter(l -> l.getExpiredAt() == null || l.getExpiredAt().isAfter(LocalDateTime.now()))
+            .orElseThrow(() -> new NotFoundException("Share link not found or expired"));
+        Long eventId = link.getEvent().getId();
+        if (eventMemberRepository.existsByEventIdAndUserId(eventId, userId)) {
+            return;
+        }
+        EventMember member = EventMember.builder()
+            .event(link.getEvent())
+            .userId(userId)
+            .role(link.getRole())
+            .invitedBy(link.getCreatedBy())
+            .build();
+        eventMemberRepository.save(member);
+        auditLogService.log(userId, "JOIN_EVENT", "EVENT", eventId, null, null, "SUCCESS");
     }
 
     private String generateUniqueToken() {

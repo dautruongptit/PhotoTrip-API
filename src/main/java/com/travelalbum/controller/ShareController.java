@@ -27,7 +27,7 @@ public class ShareController {
     @PreAuthorize("hasRole('ADMIN') or @eventSecurity.isOwner(#id, authentication)")
     public ApiResponse<ShareLinkResponse> create(@PathVariable Long id,
                                                   @AuthenticationPrincipal UserPrincipal principal) {
-        return ApiResponse.success("Share link created", shareService.create(id, principal.getId()));
+        return ApiResponse.success("Share link created", shareService.create(id, principal.getId(), null));
     }
 
     @GetMapping("/api/share/{token}")

@@ -1,5 +1,6 @@
 package com.travelalbum.dto.response;
 
+import com.travelalbum.enums.EventMemberRole;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -12,4 +13,5 @@ public class ShareLinkResponse {
     private String shareUrl;
     private LocalDateTime expiredAt;
     private boolean active;
+    private EventMemberRole role;
 }
