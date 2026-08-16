@@ -4,6 +4,7 @@ import com.travelalbum.common.ApiResponse;
 import com.travelalbum.dto.response.EventResponse;
 import com.travelalbum.dto.response.PhotoResponse;
 import com.travelalbum.dto.response.ShareLinkResponse;
+import com.travelalbum.enums.EventMemberRole;
 import com.travelalbum.security.userdetails.UserPrincipal;
 import com.travelalbum.service.ShareService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -26,8 +28,9 @@ public class ShareController {
     @PostMapping("/api/events/{id}/share")
     @PreAuthorize("hasRole('ADMIN') or @eventSecurity.isOwner(#id, authentication)")
     public ApiResponse<ShareLinkResponse> create(@PathVariable Long id,
+                                                  @RequestParam(value = "role", required = false) EventMemberRole role,
                                                   @AuthenticationPrincipal UserPrincipal principal) {
-        return ApiResponse.success("Share link created", shareService.create(id, principal.getId(), null));
+        return ApiResponse.success("Share link created", shareService.create(id, principal.getId(), role));
     }
 
     @GetMapping("/api/share/{token}")
@@ -38,6 +41,13 @@ public class ShareController {
     @GetMapping("/api/share/{token}/photos")
     public ApiResponse<Page<PhotoResponse>> listByToken(@PathVariable String token, Pageable pageable) {
         return ApiResponse.success("OK", shareService.listPhotosByToken(token, pageable));
+    }
+
+    @PostMapping("/api/share/{token}/join")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public ApiResponse<Void> join(@PathVariable String token, @AuthenticationPrincipal UserPrincipal principal) {
+        shareService.joinByToken(token, principal.getId());
+        return ApiResponse.success("Joined event", null);
     }
 
     @DeleteMapping("/api/share/{token}")
