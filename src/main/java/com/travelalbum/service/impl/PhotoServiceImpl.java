@@ -8,10 +8,12 @@ import com.travelalbum.dto.response.UploadResultResponse;
 import com.travelalbum.entity.Event;
 import com.travelalbum.entity.Photo;
 import com.travelalbum.entity.User;
+import com.travelalbum.enums.EventMemberRole;
 import com.travelalbum.exception.BusinessException;
 import com.travelalbum.exception.NotFoundException;
 import com.travelalbum.mapper.PhotoMapper;
 import com.travelalbum.repository.EventRepository;
+import com.travelalbum.repository.EventMemberRepository;
 import com.travelalbum.repository.PhotoRepository;
 import com.travelalbum.repository.UserRepository;
 import com.travelalbum.service.AuditLogService;
@@ -42,6 +44,7 @@ public class PhotoServiceImpl implements PhotoService {
 
     private final PhotoRepository photoRepository;
     private final EventRepository eventRepository;
+    private final EventMemberRepository eventMemberRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final PhotoMapper photoMapper;
@@ -52,8 +55,10 @@ public class PhotoServiceImpl implements PhotoService {
     public UploadResultResponse uploadMultiple(Long eventId, MultipartFile[] files, Long userId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event not found"));
-        if (!event.getOwnerId().equals(userId)) {
-            throw new AccessDeniedException("Not the owner of this event");
+        boolean isOwner = event.getOwnerId().equals(userId);
+        boolean isEditor = eventMemberRepository.existsByEventIdAndUserIdAndRole(eventId, userId, EventMemberRole.EDITOR);
+        if (!isOwner && !isEditor) {
+            throw new AccessDeniedException("Not allowed to upload to this event");
         }
         if (files.length > MAX_FILES) {
             throw new BusinessException("Too many files in one request", "TOO_MANY_FILES");

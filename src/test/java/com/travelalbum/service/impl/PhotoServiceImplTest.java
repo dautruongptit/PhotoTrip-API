@@ -9,12 +9,14 @@ import com.travelalbum.exception.BusinessException;
 import com.travelalbum.exception.NotFoundException;
 import com.travelalbum.mapper.PhotoMapper;
 import com.travelalbum.repository.EventRepository;
+import com.travelalbum.repository.EventMemberRepository;
 import com.travelalbum.repository.PhotoRepository;
 import com.travelalbum.repository.UserRepository;
 import com.travelalbum.service.AuditLogService;
 import com.travelalbum.storage.StorageService;
 import com.travelalbum.storage.StoredFile;
 import com.travelalbum.dto.response.BatchDeleteResponse;
+import com.travelalbum.enums.EventMemberRole;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -43,6 +45,7 @@ class PhotoServiceImplTest {
 
     @Mock private PhotoRepository photoRepository;
     @Mock private EventRepository eventRepository;
+    @Mock private EventMemberRepository eventMemberRepository;
     @Mock private UserRepository userRepository;
     @Mock private StorageService storageService;
     @Mock private PhotoMapper photoMapper;
@@ -67,6 +70,32 @@ class PhotoServiceImplTest {
 
         assertThatThrownBy(() -> photoService.uploadMultiple(10L, files, 2L))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void uploadMultiple_allowsEditorMember_evenIfNotOwner() {
+        Event event = ownedEvent();
+        User editor = User.builder().id(2L).storageFolder("editor_000002")
+                .storageUsed(0L).storageQuota(10_000_000L).build();
+        when(eventRepository.findById(10L)).thenReturn(Optional.of(event));
+        when(eventMemberRepository.existsByEventIdAndUserIdAndRole(10L, 2L, EventMemberRole.EDITOR)).thenReturn(true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(editor));
+        when(photoRepository.existsByEventIdAndOriginalName(10L, "IMG_001.jpg")).thenReturn(false);
+        when(storageService.store(eq("editor_000002"), eq("ev-folder"), any()))
+                .thenReturn(new StoredFile("uuid_IMG_001.jpg", "ev-folder/uuid_IMG_001.jpg", "checksum123", 1920, 1080));
+        when(photoRepository.save(any(Photo.class))).thenAnswer(inv -> {
+            Photo p = inv.getArgument(0);
+            p.setId(501L);
+            return p;
+        });
+        when(photoMapper.toResponse(any(Photo.class))).thenReturn(PhotoResponse.builder().id(501L).build());
+
+        MultipartFile[] files = { new MockMultipartFile("files", "IMG_001.jpg", "image/jpeg", "x".getBytes()) };
+
+        UploadResultResponse result = photoService.uploadMultiple(10L, files, 2L);
+
+        assertThat(result.getUploaded()).isEqualTo(1);
+        assertThat(editor.getStorageUsed()).isEqualTo(1L);
     }
 
     @Test

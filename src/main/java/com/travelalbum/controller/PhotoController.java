@@ -48,7 +48,7 @@ public class PhotoController {
 
     @Auditable(action = "UPLOAD", targetType = "EVENT")
     @PostMapping(value = "/api/events/{eventId}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or @eventSecurity.canUpload(#eventId, authentication)")
     public ApiResponse<UploadResultResponse> upload(@PathVariable Long eventId,
                                                     @RequestParam("files") org.springframework.web.multipart.MultipartFile[] files,
                                                     @AuthenticationPrincipal UserPrincipal principal) {
