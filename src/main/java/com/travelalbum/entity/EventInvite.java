@@ -1,6 +1,7 @@
 package com.travelalbum.entity;
 
 import com.travelalbum.enums.EventMemberRole;
+import com.travelalbum.enums.InviteStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,13 +24,16 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "share_links")
+@Table(
+    name = "event_invites",
+    uniqueConstraints = @UniqueConstraint(name = "uq_event_invite_pending", columnNames = {"event_id", "invited_user_id"})
+)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ShareLink {
+public class EventInvite {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,25 +43,25 @@ public class ShareLink {
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
-    @Column(nullable = false, unique = true, length = 64)
-    private String token;
+    @Column(name = "invited_user_id", nullable = false)
+    private Long invitedUserId;
 
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "expired_at")
-    private LocalDateTime expiredAt;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private boolean active = true;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EventMemberRole role;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private EventMemberRole role = EventMemberRole.VIEWER;
+    private InviteStatus status = InviteStatus.PENDING;
+
+    @Column(name = "invited_by", nullable = false)
+    private Long invitedBy;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "responded_at")
+    private LocalDateTime respondedAt;
 }
