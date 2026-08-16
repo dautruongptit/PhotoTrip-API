@@ -85,7 +85,7 @@ public class PhotoController {
     public void download(@PathVariable Long id, HttpServletResponse response) throws IOException {
         Photo photo = photoRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Photo not found"));
-        String parentFolder = resolveOwnerStorageFolder(photo);
+        String parentFolder = resolveStorageFolder(photo);
         Resource resource = storageService.load(parentFolder, photo.getPath());
         response.setContentType(photo.getMimeType());
         response.setHeader("Content-Disposition", "attachment; filename=\"" + photo.getOriginalName() + "\"");
@@ -103,7 +103,7 @@ public class PhotoController {
         try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
             for (Photo photo : photos) {
                 zos.putNextEntry(new ZipEntry(photo.getOriginalName()));
-                String parentFolder = resolveOwnerStorageFolder(photo);
+                String parentFolder = resolveStorageFolder(photo);
                 Resource resource = storageService.load(parentFolder, photo.getPath());
                 try (InputStream is = resource.getInputStream()) {
                     is.transferTo(zos);
@@ -113,14 +113,17 @@ public class PhotoController {
         }
     }
 
-    private String resolveOwnerStorageFolder(Photo photo) {
-        // KHÔNG dùng photo.getEvent().getOwnerId() — Photo.event là quan hệ LAZY và
-        // Controller không chạy trong transaction, session đã đóng sau findById() nên
-        // sẽ ném LazyInitializationException. Lấy ownerId qua join JPQL thay thế.
-        Long ownerId = photoRepository.findOwnerIdByPhotoId(photo.getId())
-                .orElseThrow(() -> new NotFoundException("Event not found"));
-        User owner = userRepository.findById(ownerId)
+    private String resolveStorageFolder(Photo photo) {
+        // Ảnh nằm trong storage folder của người upload (xem PhotoServiceImpl.uploadMultiple),
+        // không phải owner của event. photo.getUploadedBy() là cột thường (không LAZY) nên đọc
+        // trực tiếp an toàn; chỉ fallback sang owner qua join JPQL khi ảnh cũ không có uploader
+        // (tài khoản gốc đã bị xoá, FK ON DELETE SET NULL).
+        Long fileOwnerUserId = photo.getUploadedBy() != null
+                ? photo.getUploadedBy()
+                : photoRepository.findOwnerIdByPhotoId(photo.getId())
+                        .orElseThrow(() -> new NotFoundException("Event not found"));
+        User user = userRepository.findById(fileOwnerUserId)
                 .orElseThrow(() -> new NotFoundException("Owner not found"));
-        return owner.getStorageFolder();
+        return user.getStorageFolder();
     }
 }

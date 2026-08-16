@@ -134,21 +134,28 @@ public class PhotoServiceImpl implements PhotoService {
     public void delete(Long photoId, Long requesterId, boolean isAdmin) {
         Photo photo = photoRepository.findById(photoId)
                 .orElseThrow(() -> new NotFoundException("Photo not found"));
-        Long ownerId = photo.getEvent().getOwnerId();
-        if (!isAdmin && !ownerId.equals(requesterId)) {
-            throw new AccessDeniedException("Not the owner of this photo");
+        Long eventOwnerId = photo.getEvent().getOwnerId();
+        boolean isEventOwner = eventOwnerId.equals(requesterId);
+        boolean isUploader = requesterId.equals(photo.getUploadedBy());
+        if (!isAdmin && !isEventOwner && !isUploader) {
+            throw new AccessDeniedException("Not allowed to delete this photo");
         }
-        User owner = userRepository.findById(ownerId)
+
+        // Ảnh vật lý nằm trong storage folder của NGƯỜI UPLOAD (xem uploadMultiple), không
+        // phải owner của event — chỉ fallback về owner khi ảnh cũ không còn uploadedBy
+        // (tài khoản gốc đã bị xoá, FK ON DELETE SET NULL).
+        Long fileOwnerUserId = photo.getUploadedBy() != null ? photo.getUploadedBy() : eventOwnerId;
+        User fileOwner = userRepository.findById(fileOwnerUserId)
                 .orElseThrow(() -> new NotFoundException("Owner not found"));
-        storageService.delete(owner.getStorageFolder(), photo.getPath());
+        storageService.delete(fileOwner.getStorageFolder(), photo.getPath());
 
         Event event = photo.getEvent();
         event.setPhotoCount(Math.max(0, event.getPhotoCount() - 1));
         event.setTotalSize(Math.max(0, event.getTotalSize() - photo.getSize()));
         eventRepository.save(event);
 
-        owner.setStorageUsed(Math.max(0, owner.getStorageUsed() - photo.getSize()));
-        userRepository.save(owner);
+        fileOwner.setStorageUsed(Math.max(0, fileOwner.getStorageUsed() - photo.getSize()));
+        userRepository.save(fileOwner);
 
         photoRepository.delete(photo);
         auditLogService.log(requesterId, "DELETE_PHOTO", "PHOTO", photoId, null, null, "SUCCESS");

@@ -258,4 +258,34 @@ class PhotoServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo("EMPTY_LIST"));
     }
+
+    @Test
+    void delete_allowsUploaderToDeleteOwnPhoto_evenIfNotEventOwner() {
+        Event event = ownedEvent();
+        event.setPhotoCount(1);
+        event.setTotalSize(1000L);
+        Photo photo = Photo.builder().id(500L).event(event).path("editor-folder/x.jpg").size(1000L).uploadedBy(2L).build();
+        User uploader = User.builder().id(2L).storageFolder("editor-folder").storageUsed(1000L).storageQuota(10_000_000L).build();
+
+        when(photoRepository.findById(500L)).thenReturn(Optional.of(photo));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(uploader));
+
+        photoService.delete(500L, 2L, false);
+
+        assertThat(event.getPhotoCount()).isEqualTo(0);
+        assertThat(uploader.getStorageUsed()).isEqualTo(0L);
+        verify(storageService).delete("editor-folder", "editor-folder/x.jpg");
+        verify(photoRepository).delete(photo);
+    }
+
+    @Test
+    void delete_deniesMemberWhoDidNotUploadTheirPhoto() {
+        Event event = ownedEvent();
+        Photo photo = Photo.builder().id(500L).event(event).path("ev-folder/x.jpg").size(1000L).uploadedBy(2L).build();
+        when(photoRepository.findById(500L)).thenReturn(Optional.of(photo));
+
+        assertThatThrownBy(() -> photoService.delete(500L, 3L, false))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(storageService, never()).delete(anyString(), anyString());
+    }
 }
