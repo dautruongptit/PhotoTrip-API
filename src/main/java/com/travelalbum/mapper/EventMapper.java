@@ -51,6 +51,7 @@ public class EventMapper {
                 .name(event.getName())
                 .description(event.getDescription())
                 .ownerName(ownerName)
+                .ownerId(event.getOwnerId())
                 .startDate(event.getStartDate())
                 .endDate(event.getEndDate())
                 .location(event.getLocation())

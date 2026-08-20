@@ -32,7 +32,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -85,9 +87,14 @@ public class PhotoController {
 
     @Auditable(action = "DOWNLOAD", targetType = "PHOTO")
     @GetMapping("/api/photos/download/{id}")
-    public void download(@PathVariable Long id, HttpServletResponse response) throws IOException {
-        Photo photo = photoRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Photo not found"));
+    public void download(@PathVariable Long id,
+                         @RequestParam(required = false) String token,
+                         @AuthenticationPrincipal UserPrincipal principal,
+                         HttpServletResponse response) throws IOException {
+        Long requesterId = principal != null ? principal.getId() : null;
+        boolean isAdmin = principal != null && principal.isAdmin();
+
+        Photo photo = photoService.getPhotoForDownload(id, token, requesterId, isAdmin);
         String parentFolder = resolveStorageFolder(photo);
         Resource resource = storageService.load(parentFolder, photo.getPath());
         response.setContentType(photo.getMimeType());
@@ -99,13 +106,33 @@ public class PhotoController {
 
     @Auditable(action = "DOWNLOAD", targetType = "PHOTO")
     @PostMapping("/api/photos/download-zip")
-    public void downloadZip(@RequestParam List<Long> ids, HttpServletResponse response) throws IOException {
+    public void downloadZip(@RequestParam List<Long> ids,
+                            @AuthenticationPrincipal UserPrincipal principal,
+                            HttpServletResponse response) throws IOException {
         response.setContentType("application/zip");
         response.setHeader("Content-Disposition", "attachment; filename=photos.zip");
-        List<Photo> photos = photoRepository.findByIdIn(ids);
+
+        Long requesterId = principal != null ? principal.getId() : null;
+        boolean isAdmin = principal != null && principal.isAdmin();
+
+        List<Photo> photos = photoService.getPhotosForZipDownload(ids, requesterId, isAdmin);
         try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
+            Set<String> seenNames = new HashSet<>();
             for (Photo photo : photos) {
-                zos.putNextEntry(new ZipEntry(photo.getOriginalName()));
+                String entryName = photo.getOriginalName();
+                if (seenNames.contains(entryName)) {
+                    int dotIndex = entryName.lastIndexOf('.');
+                    if (dotIndex != -1) {
+                        String name = entryName.substring(0, dotIndex);
+                        String ext = entryName.substring(dotIndex);
+                        entryName = name + "_" + photo.getId() + ext;
+                    } else {
+                        entryName = entryName + "_" + photo.getId();
+                    }
+                }
+                seenNames.add(entryName);
+
+                zos.putNextEntry(new ZipEntry(entryName));
                 String parentFolder = resolveStorageFolder(photo);
                 Resource resource = storageService.load(parentFolder, photo.getPath());
                 try (InputStream is = resource.getInputStream()) {

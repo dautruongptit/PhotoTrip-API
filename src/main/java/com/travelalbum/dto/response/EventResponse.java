@@ -13,6 +13,7 @@ public class EventResponse {
     private String name;
     private String description;
     private String ownerName;
+    private Long ownerId;
     private LocalDate startDate;
     private LocalDate endDate;
     private String location;

@@ -67,6 +67,10 @@ public class SecurityConfig {
                         // giờ yêu cầu đăng nhập + lọc theo owner (xem EventController/PhotoController).
                         .requestMatchers(HttpMethod.GET, "/api/events/*/cover", "/api/photos/download/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // Swagger UI/OpenAPI — chỉ thực sự truy cập được ở dev vì springdoc.*.enabled
+                        // đã bị tắt hẳn ở application-prod.yml (SEC-02), permitAll ở đây không mở thêm
+                        // rủi ro cho production.
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> oauth2

@@ -128,13 +128,14 @@ public class AuthController {
                     .ifPresent(t -> { t.setRevoked(true); refreshTokenRepository.save(t); });
         }
 
-        userRepository.findById(principal.getId()).ifPresent(user -> {
-            user.setCurrentSessionId(null);
-            userRepository.save(user);
-            sessionCache.invalidate(user.getId());
-        });
-
-        auditLogService.log(principal.getId(), "LOGOUT", "USER", principal.getId(), null, null, "SUCCESS");
+        if (principal != null) {
+            userRepository.findById(principal.getId()).ifPresent(user -> {
+                user.setCurrentSessionId(null);
+                userRepository.save(user);
+                sessionCache.invalidate(user.getId());
+            });
+            auditLogService.log(principal.getId(), "LOGOUT", "USER", principal.getId(), null, null, "SUCCESS");
+        }
         return ApiResponse.success("Logged out", null);
     }
 

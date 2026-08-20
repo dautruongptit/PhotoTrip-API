@@ -3,7 +3,7 @@ spring:
     name: travel-photo
 
   datasource:
-    url: ${DB_URL:jdbc:mysql://100.102.72.31:3306/photo_trip?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true}
+    url: ${DB_URL:jdbc:mysql://100.121.122.102:3306/photo_trip?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:1234567890}
     driver-class-name: com.mysql.cj.jdbc.Driver

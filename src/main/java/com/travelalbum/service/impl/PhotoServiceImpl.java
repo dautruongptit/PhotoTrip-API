@@ -15,6 +15,7 @@ import com.travelalbum.mapper.PhotoMapper;
 import com.travelalbum.repository.EventRepository;
 import com.travelalbum.repository.EventMemberRepository;
 import com.travelalbum.repository.PhotoRepository;
+import com.travelalbum.repository.ShareLinkRepository;
 import com.travelalbum.repository.UserRepository;
 import com.travelalbum.service.AuditLogService;
 import com.travelalbum.service.PhotoService;
@@ -27,6 +28,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.time.LocalDateTime;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,6 +49,7 @@ public class PhotoServiceImpl implements PhotoService {
     private final EventRepository eventRepository;
     private final EventMemberRepository eventMemberRepository;
     private final UserRepository userRepository;
+    private final ShareLinkRepository shareLinkRepository;
     private final StorageService storageService;
     private final PhotoMapper photoMapper;
     private final AuditLogService auditLogService;
@@ -186,6 +190,63 @@ public class PhotoServiceImpl implements PhotoService {
             }
         }
         return new BatchDeleteResponse(deletedIds, failures);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Photo getPhotoForDownload(Long photoId, String token, Long requesterId, boolean isAdmin) {
+        Photo photo = photoRepository.findById(photoId)
+                .orElseThrow(() -> new NotFoundException("Photo not found"));
+
+        if (hasAccessToPhoto(photo, token, requesterId, isAdmin)) {
+            return photo;
+        }
+        throw new AccessDeniedException("Access denied to this photo");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Photo> getPhotosForZipDownload(List<Long> photoIds, Long requesterId, boolean isAdmin) {
+        List<Photo> photos = photoRepository.findByIdIn(photoIds);
+        List<Photo> authorizedPhotos = new ArrayList<>();
+        for (Photo photo : photos) {
+            if (hasAccessToPhoto(photo, null, requesterId, isAdmin)) {
+                authorizedPhotos.add(photo);
+            }
+        }
+        if (authorizedPhotos.isEmpty()) {
+            throw new AccessDeniedException("No photos authorized for download");
+        }
+        return authorizedPhotos;
+    }
+
+    private boolean hasAccessToPhoto(Photo photo, String token, Long requesterId, boolean isAdmin) {
+        if (isAdmin) {
+            return true;
+        }
+
+        Long eventId = photo.getEvent().getId();
+        Long ownerId = photo.getEvent().getOwnerId();
+
+        // 1. Owner
+        if (requesterId != null && ownerId.equals(requesterId)) {
+            return true;
+        }
+
+        // 2. Member
+        if (requesterId != null && eventMemberRepository.existsByEventIdAndUserId(eventId, requesterId)) {
+            return true;
+        }
+
+        // 3. Share token
+        if (token != null && !token.isBlank()) {
+            return shareLinkRepository.findByTokenAndActiveTrue(token)
+                    .filter(l -> l.getExpiredAt() == null || l.getExpiredAt().isAfter(LocalDateTime.now()))
+                    .map(l -> l.getEvent().getId().equals(eventId))
+                    .orElse(false);
+        }
+
+        return false;
     }
 
     private void validate(MultipartFile file) {
