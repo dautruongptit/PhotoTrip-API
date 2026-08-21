@@ -53,9 +53,11 @@ jwt:
 storage:
   # Dev (chạy local, không Docker): trỏ thẳng 1 thư mục Windows qua STORAGE_ROOT_PATH
   # trong .env.development (vd D:/My Project/tripTravel/photo).
-  # Production (Docker trên Ubuntu): STORAGE_ROOT_PATH trong .env chỉ dùng để bind-mount
-  # ở docker-compose.yml (host path -> /data/photo-storage TRONG container) — bên trong
-  # container biến này cũng đã được set đúng /data/photo-storage nên khớp với path thật.
+  # Production (Docker trên Ubuntu): STORAGE_ROOT_PATH ở đây LUÔN là đường dẫn
+  # BÊN TRONG container (/data/photo-storage) — docker-compose.yml đã ép cứng
+  # giá trị này trong `environment:`. Đường dẫn THẬT trên host server dùng biến
+  # riêng STORAGE_HOST_PATH, chỉ dùng ở vế trái `volumes:` trong docker-compose.yml,
+  # không lộ vào bên trong container.
   root-path: ${STORAGE_ROOT_PATH:/data/photo-storage}
 
 app:
